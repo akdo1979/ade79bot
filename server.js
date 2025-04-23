@@ -53,12 +53,14 @@ bot.action(["ru", "qq", "uz", "kz"], (ctx) => {
 
 bot.on("text", (ctx) => {
   const userId = ctx.from.id;
-  
-  if (userId === OWNER_ID && ctx.message.reply_to_message) {
+  const lang = userState[userId]?.lang;
+
+  if (ctx.message.reply_to_message && userId !== OWNER_ID) {
+    // Если это не ответ владельца, то пересылаем клиенту
     const replyToId = ctx.message.reply_to_message.message_id;
     const clientId = ctx.message.reply_to_message.from.id; // Получаем ID клиента
 
-    // Отправка ответа клиенту
+    // Пересылаем ответ владельца клиенту
     ctx.telegram.sendMessage(
       clientId, 
       ctx.message.text, 
@@ -67,18 +69,21 @@ bot.on("text", (ctx) => {
     return;
   }
 
-  const lang = userState[userId]?.lang;
   if (lang) {
     ctx.reply(translations[lang].waiting);
   }
 
-  // Отправка смс владельцу
-  bot.telegram.sendMessage(OWNER_ID, `Пользователь ${ctx.from.username} задал вопрос: ${ctx.message.text}`);
+  // Отправка сообщения владельцу
+  if (userId === OWNER_ID) {
+    bot.telegram.sendMessage(OWNER_ID, `Пользователь ${ctx.from.username} задал вопрос: ${ctx.message.text}`);
+  }
 });
 
 bot.launch().then(() => {
   console.log("✅ Бот A.D.E.I.T. запущен и готов к работе");
 });
+
+
 
 
 

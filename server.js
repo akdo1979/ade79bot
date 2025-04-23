@@ -3,6 +3,8 @@ const { Telegraf, Markup } = require("telegraf");
 
 const bot = new Telegraf(process.env.TELEGRAM_TOKEN);
 
+const OWNER_ID = 7797626310;
+
 const translations = {
   ru: {
     greeting: "👋 Привет! Я ассистент A.D.E.I.T.\n\nЯ помогу тебе с вопросами по amoCRM. Просто задай свой вопрос!",
@@ -29,7 +31,7 @@ bot.start((ctx) => {
   userState[userId] = { lang: null, count: 0, tariffSent: false };
   ctx.reply(
     "Пожалуйста, выберите язык / Тілді таңдаңыз / Tilni tanlang / Tildi tańlań:",
-    Markup.inlineKeyboard([ 
+    Markup.inlineKeyboard([
       [{ text: "Русский 🇷🇺", callback_data: "ru" }],
       [{ text: "Каракалпакский 🇷🇼", callback_data: "qq" }],
       [{ text: "Узбекский 🇺🇿", callback_data: "uz" }],
@@ -51,9 +53,19 @@ bot.action(["ru", "qq", "uz", "kz"], (ctx) => {
 
 bot.on("text", (ctx) => {
   const userId = ctx.from.id;
+  
+  if (userId === OWNER_ID && ctx.message.reply_to_message) {
+    const replyToId = ctx.message.reply_to_message.message_id;
+    ctx.telegram.sendMessage(
+      ctx.message.chat.id,
+      ctx.message.text,
+      { reply_to_message_id: replyToId }
+    );
+    return;
+  }
+
   const lang = userState[userId]?.lang;
   if (lang) {
-    // После того как клиент отправляет свой вопрос, отправляем сообщение, что ответит сотрудник
     ctx.reply(translations[lang].waiting);
   }
 });
@@ -61,6 +73,7 @@ bot.on("text", (ctx) => {
 bot.launch().then(() => {
   console.log("✅ Бот A.D.E.I.T. запущен и готов к работе");
 });
+
 
 
 

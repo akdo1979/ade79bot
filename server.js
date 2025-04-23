@@ -24,7 +24,6 @@ const translations = {
 };
 
 const userState = {};
-const messageToClientMap = {};
 
 bot.start((ctx) => {
   const userId = ctx.from.id;
@@ -51,17 +50,16 @@ bot.action(["ru", "qq", "uz", "kz"], (ctx) => {
   ctx.reply(translations[lang].greeting);
 });
 
-bot.on("text", async (ctx) => {
+bot.on("text", (ctx) => {
   const userId = ctx.from.id;
-
-  // Если владелец отвечает на сообщение клиента
+  
   if (userId === OWNER_ID && ctx.message.reply_to_message) {
-    const repliedMessageId = ctx.message.reply_to_message.message_id;
-    const clientId = messageToClientMap[repliedMessageId];
-
-    if (clientId) {
-      await ctx.telegram.sendMessage(clientId, ctx.message.text);
-    }
+    const replyToId = ctx.message.reply_to_message.message_id;
+    ctx.telegram.sendMessage(
+      ctx.message.chat.id,
+      ctx.message.text,
+      { reply_to_message_id: replyToId }
+    );
     return;
   }
 
@@ -70,19 +68,18 @@ bot.on("text", async (ctx) => {
     ctx.reply(translations[lang].waiting);
   }
 
-  // Пересылаем сообщение владельцу и сохраняем ID отправителя
-  const forwardedMessage = await ctx.telegram.sendMessage(
+  // Пересылаем владельцу
+  ctx.telegram.sendMessage(
     OWNER_ID,
-    `Сообщение от клиента:\nID: ${userId}\n\n${ctx.message.text}`
+    `Сообщение от клиента\nID: ${userId}\nТекст: ${ctx.message.text}`
   );
-
-  // Связываем message_id отправленного сообщения с ID клиента
-  messageToClientMap[forwardedMessage.message_id] = userId;
 });
 
 bot.launch().then(() => {
   console.log("✅ Бот A.D.E.I.T. запущен и готов к работе");
 });
+
+
 
 
 

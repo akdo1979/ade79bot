@@ -10,7 +10,7 @@ const translations = {
   },
   uz: {
     greeting: "👋 Salom! Men A.D.E.I.T. yordamchisiman.\n\nMen amoCRM bo‘yicha savollarga yordam beraman. Savolingizni yuboring!",
-    waiting: "📞 Birinchi bo'lib bo'shashgan xodim javob beradi. Kutilganingiz uchun rahmat!",
+    waiting: "📞 Birinchi bo'lib bo'shashgan xodim javob beradi. Kutganingiz uchun rahmat!",
   },
   kz: {
     greeting: "👋 Сәлем! Мен A.D.E.I.T. көмекшісімін.\n\nМен amoCRM бойынша сұрақтарыңа көмектесемін. Сұрағыңды жібер.",
@@ -29,7 +29,7 @@ bot.start((ctx) => {
   userState[userId] = { lang: null, count: 0, tariffSent: false };
   ctx.reply(
     "Пожалуйста, выберите язык / Тілді таңдаңыз / Tilni tanlang / Tildi tańlań:",
-    Markup.inlineKeyboard([
+    Markup.inlineKeyboard([ 
       [{ text: "Русский 🇷🇺", callback_data: "ru" }],
       [{ text: "Каракалпакский 🇷🇼", callback_data: "qq" }],
       [{ text: "Узбекский 🇺🇿", callback_data: "uz" }],
@@ -51,8 +51,9 @@ bot.action(["ru", "qq", "uz", "kz"], (ctx) => {
 
 bot.on("text", (ctx) => {
   const userId = ctx.from.id;
-  if (userState[userId] && userState[userId].lang) {
-    const lang = userState[userId].lang;
+  const lang = userState[userId]?.lang;
+  if (lang) {
+    // После того как клиент отправляет свой вопрос, отправляем сообщение, что ответит сотрудник
     ctx.reply(translations[lang].waiting);
   }
 });
@@ -60,6 +61,8 @@ bot.on("text", (ctx) => {
 bot.launch().then(() => {
   console.log("✅ Бот A.D.E.I.T. запущен и готов к работе");
 });
+
+
 
 
 

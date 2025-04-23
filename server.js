@@ -2,7 +2,6 @@ require("dotenv").config();
 const { Telegraf, Markup } = require("telegraf");
 
 const bot = new Telegraf(process.env.TELEGRAM_TOKEN);
-
 const OWNER_ID = 7797626310;
 
 const translations = {
@@ -25,6 +24,7 @@ const translations = {
 };
 
 const userState = {};
+const messageToClientMap = {};
 
 bot.start((ctx) => {
   const userId = ctx.from.id;
@@ -51,37 +51,40 @@ bot.action(["ru", "qq", "uz", "kz"], (ctx) => {
   ctx.reply(translations[lang].greeting);
 });
 
-bot.on("text", (ctx) => {
+bot.on("text", async (ctx) => {
   const userId = ctx.from.id;
-  const lang = userState[userId]?.lang;
 
-  if (ctx.message.reply_to_message && userId !== OWNER_ID) {
-    // Если это не ответ владельца, то пересылаем клиенту
-    const replyToId = ctx.message.reply_to_message.message_id;
-    const clientId = ctx.message.reply_to_message.from.id; // Получаем ID клиента
+  // Если владелец отвечает на сообщение клиента
+  if (userId === OWNER_ID && ctx.message.reply_to_message) {
+    const repliedMessageId = ctx.message.reply_to_message.message_id;
+    const clientId = messageToClientMap[repliedMessageId];
 
-    // Пересылаем ответ владельца клиенту
-    ctx.telegram.sendMessage(
-      clientId, 
-      ctx.message.text, 
-      { reply_to_message_id: replyToId }
-    );
+    if (clientId) {
+      await ctx.telegram.sendMessage(clientId, ctx.message.text);
+    }
     return;
   }
 
+  const lang = userState[userId]?.lang;
   if (lang) {
     ctx.reply(translations[lang].waiting);
   }
 
-  // Отправка сообщения владельцу
-  if (userId === OWNER_ID) {
-    bot.telegram.sendMessage(OWNER_ID, `Пользователь ${ctx.from.username} задал вопрос: ${ctx.message.text}`);
-  }
+  // Пересылаем сообщение владельцу и сохраняем ID отправителя
+  const forwardedMessage = await ctx.telegram.sendMessage(
+    OWNER_ID,
+    `Сообщение от клиента:\nID: ${userId}\n\n${ctx.message.text}`
+  );
+
+  // Связываем message_id отправленного сообщения с ID клиента
+  messageToClientMap[forwardedMessage.message_id] = userId;
 });
 
 bot.launch().then(() => {
   console.log("✅ Бот A.D.E.I.T. запущен и готов к работе");
 });
+
+
 
 
 

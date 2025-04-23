@@ -14,7 +14,7 @@ const translations = {
   },
   kz: {
     greeting: "👋 Сәлем! Мен A.D.E.I.T. көмекшісімін.\n\nМен amoCRM бойынша сұрақтарыңа көмектесемін. Сұрағыңды жібер.",
-    waiting: "📞 Бірінші босайтын қызметкер жауап береді. Күткені үшін рахмет!",
+    waiting: "📞 Бірінші босайтын қызметкер жауап береді. Күткенің үшін рахмет!",
   },
   qq: {
     greeting: "👋 Salam! Men A.D.E.I.T. jardemshisimmen.\n\nMen sagan amoCRM haqqinda jardem beremen. Sawalyndi jaz.",
@@ -47,10 +47,19 @@ bot.action(["ru", "qq", "uz", "kz"], (ctx) => {
   userState[userId].tariffSent = false;
   ctx.answerCbQuery();
   ctx.reply(translations[lang].greeting);
-  ctx.reply(translations[lang].waiting);
+});
+
+bot.on("text", (ctx) => {
+  const userId = ctx.from.id;
+  if (userState[userId] && userState[userId].lang) {
+    const lang = userState[userId].lang;
+    ctx.reply(translations[lang].waiting);
+  }
 });
 
 bot.launch().then(() => {
   console.log("✅ Бот A.D.E.I.T. запущен и готов к работе");
 });
+
+
 

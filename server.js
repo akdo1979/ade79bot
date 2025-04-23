@@ -56,9 +56,12 @@ bot.on("text", (ctx) => {
   
   if (userId === OWNER_ID && ctx.message.reply_to_message) {
     const replyToId = ctx.message.reply_to_message.message_id;
+    const clientId = ctx.message.reply_to_message.from.id; // Получаем ID клиента
+
+    // Отправка ответа клиенту
     ctx.telegram.sendMessage(
-      ctx.message.chat.id,
-      ctx.message.text,
+      clientId, 
+      ctx.message.text, 
       { reply_to_message_id: replyToId }
     );
     return;
@@ -68,11 +71,16 @@ bot.on("text", (ctx) => {
   if (lang) {
     ctx.reply(translations[lang].waiting);
   }
+
+  // Отправка смс владельцу
+  bot.telegram.sendMessage(OWNER_ID, `Пользователь ${ctx.from.username} задал вопрос: ${ctx.message.text}`);
 });
 
 bot.launch().then(() => {
   console.log("✅ Бот A.D.E.I.T. запущен и готов к работе");
 });
+
+
 
 
 

@@ -7,7 +7,7 @@ const OWNER_ID = 7797626310;
 const translations = {
   ru: {
     greeting: "👋 Привет! Я ассистент A.D.E.I.T.\n\nЯ помогу тебе с вопросами по amoCRM. Просто задай свой вопрос!",
-    waiting: "📞 Вам ответит первый освободившийся сотрудник. Спасибо за ожидание!",
+    waiting: "📞 Вам ответит первый свободившийся сотрудник. Спасибо за ожидание!",
   },
   uz: {
     greeting: "👋 Salom! Men A.D.E.I.T. yordamchisiman.\n\nMen amoCRM bo‘yicha savollarga yordam beraman. Savolingizni yuboring!",
@@ -24,14 +24,13 @@ const translations = {
 };
 
 const userState = {};
-const pendingReplies = {};
 
 bot.start((ctx) => {
   const userId = ctx.from.id;
-  userState[userId] = { lang: null, count: 0, tariffSent: false };
+  userState[userId] = { lang: null, count: 0, tariffSent: false, waitingMessageSent: false };
   ctx.reply(
     "Пожалуйста, выберите язык / Тілді таңдаңыз / Tilni tanlang / Tildi tańlań:",
-    Markup.inlineKeyboard([
+    Markup.inlineKeyboard([ 
       [{ text: "Русский 🇷🇺", callback_data: "ru" }],
       [{ text: "Каракалпакский 🇷🇼", callback_data: "qq" }],
       [{ text: "Узбекский 🇺🇿", callback_data: "uz" }],
@@ -43,75 +42,65 @@ bot.start((ctx) => {
 bot.action(["ru", "qq", "uz", "kz"], (ctx) => {
   const userId = ctx.from.id;
   const lang = ctx.match[0];
-  if (!userState[userId]) userState[userId] = { count: 0, tariffSent: false };
+  if (!userState[userId]) userState[userId] = { count: 0, tariffSent: false, waitingMessageSent: false };
   userState[userId].lang = lang;
   userState[userId].count = 0;
   userState[userId].tariffSent = false;
+  userState[userId].waitingMessageSent = false; // сбрасываем флаг для нового пользователя
   ctx.answerCbQuery();
   ctx.reply(translations[lang].greeting);
 });
 
-// --- Ответ от оператора по кнопке ---
-bot.on("callback_query", async (ctx) => {
-  const data = ctx.callbackQuery.data;
+bot.on("text", (ctx) => {
+  const userId = ctx.from.id;
 
-  if (data.startsWith("reply_")) {
-    const userId = data.split("_")[1];
-    pendingReplies[ctx.from.id] = userId;
-
-    await ctx.answerCbQuery();
-    await ctx.reply("✍️ Напишите ответ для клиента, и он получит его напрямую.");
-  }
-});
-
-// --- Обработка всех входящих сообщений ---
-bot.on("text", async (ctx) => {
-  const senderId = ctx.from.id;
-
-  // Если оператор отвечает клиенту
-  if (pendingReplies[senderId]) {
-    const targetUserId = pendingReplies[senderId];
-    delete pendingReplies[senderId];
-
-    const replyText = ctx.message?.text;
-    if (!replyText) {
-      await ctx.reply("❌ Ошибка: пустой текст сообщения.");
-      return;
-    }
-
-    try {
-      await ctx.telegram.sendMessage(targetUserId, replyText);
-      await ctx.reply("✅ Ответ отправлен клиенту.");
-    } catch (error) {
-      console.error("Ошибка при отправке ответа клиенту:", error);
-      await ctx.reply("❌ Ошибка при отправке ответа клиенту.");
-    }
+  if (userId === OWNER_ID && ctx.message.reply_to_message) {
+    const replyToId = ctx.message.reply_to_message.message_id;
+    ctx.telegram.sendMessage(
+      ctx.message.chat.id,
+      ctx.message.text,
+      { reply_to_message_id: replyToId }
+    );
     return;
   }
 
-  // Обработка сообщений от клиентов
-  const lang = userState[senderId]?.lang;
-  if (lang) {
-    await ctx.reply(translations[lang].waiting);
+  const lang = userState[userId]?.lang;
+  if (lang && !userState[userId].waitingMessageSent) {
+    ctx.reply(translations[lang].waiting);
+    userState[userId].waitingMessageSent = true; // устанавливаем флаг, чтобы больше не отправлять сообщение
   }
 
-  // Пересылаем владельцу с кнопкой для ответа
-  try {
-    await ctx.telegram.sendMessage(
-      OWNER_ID,
-      `💬 Сообщение от клиента\nID: ${senderId}\nТекст: ${ctx.message.text}`,
-      Markup.inlineKeyboard([
-        [Markup.button.callback("Ответить клиенту", `reply_${senderId}`)],
-      ])
-    );
-  } catch (err) {
-    console.error("Ошибка при пересылке сообщения владельцу:", err);
+  // Пересылаем владельцу
+  ctx.telegram.sendMessage(
+    OWNER_ID,
+    `Сообщение от клиента\nID: ${userId}\nТекст: ${ctx.message.text}`,
+    Markup.inlineKeyboard([
+      [{ text: "Ответить клиенту", callback_data: `reply_${userId}` }]
+    ])
+  );
+});
+
+bot.action(/^reply_(\d+)$/, async (ctx) => {
+  const userId = ctx.match[1];
+
+  // Получаем ответ владельца
+  const replyMessage = ctx.message.text;
+  if (!replyMessage) {
+    return ctx.reply("Ошибка: нет текста ответа.");
   }
+
+  // Отправляем ответ клиенту
+  await ctx.telegram.sendMessage(userId, `Ваш вопрос: "${ctx.message.reply_to_message.text}"\n\nОтвет: ${replyMessage}`);
+
+  // Примечание: отправка ответа клиенту
+  ctx.reply("Ответ отправлен клиенту.");
 });
 
 bot.launch().then(() => {
   console.log("✅ Бот A.D.E.I.T. запущен и готов к работе");
 });
+
+
 
 
 

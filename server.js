@@ -1,7 +1,5 @@
 require("dotenv").config();
 const { Telegraf, Markup } = require("telegraf");
-const fs = require('fs');
-const path = require('path');
 
 const bot = new Telegraf(process.env.TELEGRAM_TOKEN);
 const OWNER_ID = 7797626310;
@@ -27,24 +25,6 @@ const translations = {
 
 const userState = {};
 const pendingReplies = {};
-const notifiedClients = new Set();
-
-// Загружаем уже уведомлённых клиентов из файла
-const notifiedClientsFile = path.join(__dirname, 'notified_clients.json');
-if (fs.existsSync(notifiedClientsFile)) {
-  const data = fs.readFileSync(notifiedClientsFile, 'utf-8');
-  try {
-    const parsed = JSON.parse(data);
-    parsed.forEach(id => notifiedClients.add(id));
-  } catch (err) {
-    console.error('Ошибка чтения notified_clients.json:', err);
-  }
-}
-
-// Функция для сохранения в файл
-function saveNotifiedClients() {
-  fs.writeFileSync(notifiedClientsFile, JSON.stringify([...notifiedClients]), 'utf-8');
-}
 
 bot.start((ctx) => {
   const userId = ctx.from.id;
@@ -69,13 +49,6 @@ bot.action(["ru", "qq", "uz", "kz"], (ctx) => {
   userState[userId].tariffSent = false;
   ctx.answerCbQuery();
   ctx.reply(translations[lang].greeting);
-
-  // Отправляем сообщение один раз о том, что с клиентом свяжется оператор
-  if (!notifiedClients.has(userId)) {
-    notifiedClients.add(userId);
-    saveNotifiedClients();
-    ctx.reply("📞 С вами обязательно свяжется оператор.");
-  }
 });
 
 // --- Ответ от оператора по кнопке ---
@@ -139,31 +112,3 @@ bot.on("text", async (ctx) => {
 bot.launch().then(() => {
   console.log("✅ Бот A.D.E.I.T. запущен и готов к работе");
 });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

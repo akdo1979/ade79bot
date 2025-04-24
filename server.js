@@ -40,61 +40,74 @@ bot.start((ctx) => {
   );
 });
 
-bot.action(["ru", "qq", "uz", "kz"], (ctx) => {
-  const userId = ctx.from.id;
-  const lang = ctx.match[0];
-  if (!userState[userId]) userState[userId] = { count: 0, tariffSent: false };
-  userState[userId].lang = lang;
-  userState[userId].count = 0;
-  userState[userId].tariffSent = false;
-  ctx.answerCbQuery();
-  ctx.reply(translations[lang].greeting);
+bot.action(["ru", "qq", "uz", "kz"], async (ctx) => {
+  try {
+    const userId = ctx.from.id;
+    const lang = ctx.match[0];
+    if (!userState[userId]) userState[userId] = { count: 0, tariffSent: false };
+    userState[userId].lang = lang;
+    userState[userId].count = 0;
+    userState[userId].tariffSent = false;
+    ctx.answerCbQuery();
+    await ctx.reply(translations[lang].greeting);
+  } catch (error) {
+    console.error("Ошибка при обработке команды выбора языка: ", error);
+  }
 });
 
-bot.on("text", (ctx) => {
-  const userId = ctx.from.id;
-  const lang = userState[userId]?.lang;
+bot.on("text", async (ctx) => {
+  try {
+    const userId = ctx.from.id;
+    const lang = userState[userId]?.lang;
 
-  if (lang) {
-    ctx.reply(translations[lang].waiting);
+    if (lang) {
+      await ctx.reply(translations[lang].waiting);
+    }
+
+    // Сохраняем сообщение и создаём кнопку "Ответить клиенту"
+    const messageId = ctx.message.message_id;
+    messageLinks.set(messageId, userId);
+
+    // Пересылаем владельцу
+    await ctx.telegram.sendMessage(
+      OWNER_ID,
+      `Сообщение от клиента\nID: ${userId}\nТекст: ${ctx.message.text}`,
+      Markup.inlineKeyboard([
+        [{ text: "Ответить клиенту", callback_data: `reply:${messageId}` }],
+      ])
+    );
+  } catch (error) {
+    console.error("Ошибка при обработке текста от клиента: ", error);
   }
-
-  // Сохраняем сообщение и создаём кнопку "Ответить клиенту"
-  const messageId = ctx.message.message_id;
-  messageLinks.set(messageId, userId);
-
-  // Пересылаем владельцу
-  ctx.telegram.sendMessage(
-    OWNER_ID,
-    `Сообщение от клиента\nID: ${userId}\nТекст: ${ctx.message.text}`,
-    Markup.inlineKeyboard([
-      [{ text: "Ответить клиенту", callback_data: `reply:${messageId}` }],
-    ])
-  );
 });
 
 // Когда оператор отвечает через кнопку
 bot.action(/^reply:(\d+)$/, async (ctx) => {
-  const messageId = ctx.match[1];
-  const clientId = messageLinks.get(parseInt(messageId)); // Получаем ID клиента по messageId
-  const replyText = ctx.message.text;
+  try {
+    const messageId = ctx.match[1];
+    const clientId = messageLinks.get(parseInt(messageId)); // Получаем ID клиента по messageId
+    const replyText = ctx.message.text;
 
-  if (clientId) {
-    const lang = userState[clientId]?.lang || 'ru'; // Получаем язык клиента или русский по умолчанию
-    await ctx.telegram.sendMessage(
-      clientId,
-      replyText,
-      { reply_to_message_id: messageId }
-    );
-    ctx.reply("Ответ отправлен клиенту.");
-  } else {
-    ctx.reply("Ошибка: не найден клиент.");
+    if (clientId) {
+      const lang = userState[clientId]?.lang || 'ru'; // Получаем язык клиента или русский по умолчанию
+      await ctx.telegram.sendMessage(
+        clientId,
+        replyText,
+        { reply_to_message_id: messageId }
+      );
+      await ctx.reply("Ответ отправлен клиенту.");
+    } else {
+      await ctx.reply("Ошибка: не найден клиент.");
+    }
+  } catch (error) {
+    console.error("Ошибка при отправке ответа клиенту: ", error);
   }
 });
 
 bot.launch().then(() => {
   console.log("✅ Бот A.D.E.I.T. запущен и готов к работе");
 });
+
 
 
 

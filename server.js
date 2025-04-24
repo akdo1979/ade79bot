@@ -26,6 +26,7 @@ const translations = {
 const userState = {};
 const pendingReplies = {};
 
+// --- Команда /start и выбор языка ---
 bot.start((ctx) => {
   const userId = ctx.from.id;
   userState[userId] = { lang: null, count: 0, tariffSent: false };
@@ -40,29 +41,24 @@ bot.start((ctx) => {
   );
 });
 
-bot.action(["ru", "qq", "uz", "kz"], (ctx) => {
+// --- Обработка выбора языка ---
+bot.action(["ru", "qq", "uz", "kz"], async (ctx) => {
   const userId = ctx.from.id;
-  const lang = ctx.match[0];
-  if (!userState[userId]) userState[userId] = { count: 0, tariffSent: false };
+  const lang = ctx.match.input;
+
+  if (!userState[userId]) {
+    userState[userId] = { count: 0, tariffSent: false };
+  }
+
   userState[userId].lang = lang;
   userState[userId].count = 0;
   userState[userId].tariffSent = false;
-  ctx.answerCbQuery();
-  ctx.reply(translations[lang].greeting);
+
+  await ctx.answerCbQuery();
+  await ctx.reply(translations[lang].greeting);
 });
 
-bot.on("callback_query", async (ctx) => {
-  const data = ctx.callbackQuery.data;
-
-  if (data.indexOf("reply_") === 0) {
-    const userId = data.split("_")[1];
-    pendingReplies[ctx.from.id] = userId;
-
-    await ctx.answerCbQuery();
-    await ctx.reply("✍️ Напишите ответ для клиента, и он получит его напрямую.");
-  }
-});
-
+// --- Обработка текстов (от клиентов и оператора) ---
 bot.on("text", async (ctx) => {
   const senderId = ctx.from.id;
 
@@ -71,11 +67,10 @@ bot.on("text", async (ctx) => {
     const targetUserId = pendingReplies[senderId];
     delete pendingReplies[senderId];
 
-    const replyText = ctx.message && ctx.message.text;
+    const replyText = ctx.message?.text || "";
 
-    if (!replyText) {
-      await ctx.reply("❌ Ошибка: пустой текст сообщения.");
-      return;
+    if (!replyText.trim()) {
+      return ctx.reply("❌ Ошибка: пустой текст сообщения.");
     }
 
     try {
@@ -85,29 +80,42 @@ bot.on("text", async (ctx) => {
       console.error("Ошибка при отправке ответа клиенту:", error);
       await ctx.reply("❌ Ошибка при отправке ответа клиенту.");
     }
+
     return;
   }
 
-  // Обработка сообщений от клиентов
-  const lang = userState[senderId] && userState[senderId].lang;
-  if (lang) {
-    await ctx.reply(translations[lang].waiting);
-  }
+  // Сообщение от клиента
+  const lang = userState[senderId]?.lang || "ru";
+  await ctx.reply(translations[lang].waiting);
 
-  // Пересылаем владельцу с кнопкой для ответа
   try {
     await ctx.telegram.sendMessage(
       OWNER_ID,
-      "💬 Сообщение от клиента\nID: " + senderId + "\nТекст: " + ctx.message.text,
+      `💬 Сообщение от клиента\nID: ${senderId}\nТекст: ${ctx.message.text}`,
       Markup.inlineKeyboard([
-        [Markup.button.callback("Ответить клиенту", "reply_" + senderId)],
+        [Markup.button.callback("Ответить клиенту", `reply_${senderId}`)],
       ])
     );
-  } catch (err) {
-    console.error("Ошибка при пересылке сообщения владельцу:", err);
+  } catch (error) {
+    console.error("Ошибка при пересылке сообщения владельцу:", error);
   }
 });
 
+// --- Кнопка "Ответить клиенту" ---
+bot.on("callback_query", async (ctx) => {
+  const data = ctx.callbackQuery.data;
+
+  if (data.startsWith("reply_")) {
+    const userId = data.split("_")[1];
+    pendingReplies[ctx.from.id] = userId;
+
+    await ctx.answerCbQuery();
+    await ctx.reply("✍️ Напишите ответ для клиента, и он получит его напрямую.");
+  }
+});
+
+// --- Запуск ---
 bot.launch().then(() => {
   console.log("✅ Бот A.D.E.I.T. запущен и готов к работе");
 });
+

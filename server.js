@@ -51,11 +51,10 @@ bot.action(["ru", "qq", "uz", "kz"], (ctx) => {
   ctx.reply(translations[lang].greeting);
 });
 
-// --- Ответ от оператора по кнопке ---
 bot.on("callback_query", async (ctx) => {
   const data = ctx.callbackQuery.data;
 
-  if (data.startsWith("reply_")) {
+  if (data.indexOf("reply_") === 0) {
     const userId = data.split("_")[1];
     pendingReplies[ctx.from.id] = userId;
 
@@ -64,7 +63,6 @@ bot.on("callback_query", async (ctx) => {
   }
 });
 
-// --- Обработка всех входящих сообщений ---
 bot.on("text", async (ctx) => {
   const senderId = ctx.from.id;
 
@@ -73,7 +71,8 @@ bot.on("text", async (ctx) => {
     const targetUserId = pendingReplies[senderId];
     delete pendingReplies[senderId];
 
-    const replyText = ctx.message?.text;
+    const replyText = ctx.message && ctx.message.text;
+
     if (!replyText) {
       await ctx.reply("❌ Ошибка: пустой текст сообщения.");
       return;
@@ -90,7 +89,7 @@ bot.on("text", async (ctx) => {
   }
 
   // Обработка сообщений от клиентов
-  const lang = userState[senderId]?.lang;
+  const lang = userState[senderId] && userState[senderId].lang;
   if (lang) {
     await ctx.reply(translations[lang].waiting);
   }
@@ -99,9 +98,9 @@ bot.on("text", async (ctx) => {
   try {
     await ctx.telegram.sendMessage(
       OWNER_ID,
-      `💬 Сообщение от клиента\nID: ${senderId}\nТекст: ${ctx.message.text}`,
+      "💬 Сообщение от клиента\nID: " + senderId + "\nТекст: " + ctx.message.text,
       Markup.inlineKeyboard([
-        [Markup.button.callback("Ответить клиенту", `reply_${senderId}`)],
+        [Markup.button.callback("Ответить клиенту", "reply_" + senderId)],
       ])
     );
   } catch (err) {

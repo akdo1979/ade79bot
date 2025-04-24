@@ -24,17 +24,18 @@ const translations = {
 };
 
 const userState = {};
+const messageLinks = new Map(); // Для связи сообщений
 
 bot.start((ctx) => {
   const userId = ctx.from.id;
   userState[userId] = { lang: null, count: 0, tariffSent: false };
   ctx.reply(
     "Пожалуйста, выберите язык / Тілді таңдаңыз / Tilni tanlang / Tildi tańlań:",
-    Markup.inlineKeyboard([
-      [{ text: "Русский 🇷🇺", callback_data: "ru" }],
-      [{ text: "Каракалпакский 🇷🇼", callback_data: "qq" }],
-      [{ text: "Узбекский 🇺🇿", callback_data: "uz" }],
-      [{ text: "Казахский 🇰🇿", callback_data: "kz" }],
+    Markup.inlineKeyboard([ 
+      [{ text: "Русский 🇷🇺", callback_data: "ru" }], 
+      [{ text: "Каракалпакский 🇷🇼", callback_data: "qq" }], 
+      [{ text: "Узбекский 🇺🇿", callback_data: "uz" }], 
+      [{ text: "Казахский 🇰🇿", callback_data: "kz" }], 
     ])
   );
 });
@@ -52,32 +53,49 @@ bot.action(["ru", "qq", "uz", "kz"], (ctx) => {
 
 bot.on("text", (ctx) => {
   const userId = ctx.from.id;
-  
-  if (userId === OWNER_ID && ctx.message.reply_to_message) {
-    const replyToId = ctx.message.reply_to_message.message_id;
-    ctx.telegram.sendMessage(
-      ctx.message.chat.id,
-      ctx.message.text,
-      { reply_to_message_id: replyToId }
-    );
-    return;
-  }
-
   const lang = userState[userId]?.lang;
+
   if (lang) {
     ctx.reply(translations[lang].waiting);
   }
 
+  // Сохраняем сообщение и создаём кнопку "Ответить клиенту"
+  const messageId = ctx.message.message_id;
+  messageLinks.set(messageId, userId);
+
   // Пересылаем владельцу
   ctx.telegram.sendMessage(
     OWNER_ID,
-    `Сообщение от клиента\nID: ${userId}\nТекст: ${ctx.message.text}`
+    `Сообщение от клиента\nID: ${userId}\nТекст: ${ctx.message.text}`,
+    Markup.inlineKeyboard([
+      [{ text: "Ответить клиенту", callback_data: `reply:${messageId}` }],
+    ])
   );
+});
+
+// Когда оператор отвечает через кнопку
+bot.action(/^reply:(\d+)$/, async (ctx) => {
+  const messageId = ctx.match[1];
+  const clientId = messageLinks.get(parseInt(messageId)); // Получаем ID клиента по messageId
+  const replyText = ctx.message.text;
+
+  if (clientId) {
+    const lang = userState[clientId]?.lang || 'ru'; // Получаем язык клиента или русский по умолчанию
+    await ctx.telegram.sendMessage(
+      clientId,
+      replyText,
+      { reply_to_message_id: messageId }
+    );
+    ctx.reply("Ответ отправлен клиенту.");
+  } else {
+    ctx.reply("Ошибка: не найден клиент.");
+  }
 });
 
 bot.launch().then(() => {
   console.log("✅ Бот A.D.E.I.T. запущен и готов к работе");
 });
+
 
 
 

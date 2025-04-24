@@ -29,7 +29,7 @@ const pendingReplies = {};
 // --- Команда /start и выбор языка ---
 bot.start((ctx) => {
   const userId = ctx.from.id;
-  userState[userId] = { lang: null, count: 0, tariffSent: false };
+  userState[userId] = { lang: null, count: 0, tariffSent: false, notified: false };
   ctx.reply(
     "Пожалуйста, выберите язык / Тілді таңдаңыз / Tilni tanlang / Tildi tańlań:",
     Markup.inlineKeyboard([
@@ -47,12 +47,13 @@ bot.action(["ru", "qq", "uz", "kz"], async (ctx) => {
   const lang = ctx.match.input;
 
   if (!userState[userId]) {
-    userState[userId] = { count: 0, tariffSent: false };
+    userState[userId] = { count: 0, tariffSent: false, notified: false };
   }
 
   userState[userId].lang = lang;
   userState[userId].count = 0;
   userState[userId].tariffSent = false;
+  userState[userId].notified = false;
 
   await ctx.answerCbQuery();
   await ctx.reply(translations[lang].greeting);
@@ -86,7 +87,15 @@ bot.on("text", async (ctx) => {
 
   // Сообщение от клиента
   const lang = userState[senderId]?.lang || "ru";
-  await ctx.reply(translations[lang].waiting);
+
+  if (!userState[senderId]) {
+    userState[senderId] = { lang, count: 0, tariffSent: false, notified: false };
+  }
+
+  if (!userState[senderId].notified) {
+    await ctx.reply(translations[lang].waiting);
+    userState[senderId].notified = true;
+  }
 
   try {
     await ctx.telegram.sendMessage(
@@ -118,4 +127,5 @@ bot.on("callback_query", async (ctx) => {
 bot.launch().then(() => {
   console.log("✅ Бот A.D.E.I.T. запущен и готов к работе");
 });
+
 

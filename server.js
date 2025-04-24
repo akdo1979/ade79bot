@@ -100,7 +100,7 @@ bot.on("text", async (ctx) => {
   try {
     await ctx.telegram.sendMessage(
       OWNER_ID,
-      `💬 Сообщение от клиента\nID: ${senderId}\nТекст: ${ctx.message.text}`,
+      `💬 Сообщение от клиента\nID: ${senderId}\nТекст: ${ctx.message.text}\nЯзык: ${translations[lang] ? lang : 'ru'}`,
       Markup.inlineKeyboard([
         [Markup.button.callback("Ответить клиенту", `reply_${senderId}`)],
       ])
@@ -127,5 +127,7 @@ bot.on("callback_query", async (ctx) => {
 bot.launch().then(() => {
   console.log("✅ Бот A.D.E.I.T. запущен и готов к работе");
 });
+
+
 
 

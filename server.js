@@ -1,79 +1,145 @@
 require("dotenv").config();
 const { Telegraf, Markup } = require("telegraf");
-const express = require("express");
-const axios = require("axios");
+const fs = require('fs');
+const path = require('path');
 
 const bot = new Telegraf(process.env.TELEGRAM_TOKEN);
-const app = express();
+const OWNER_ID = 7797626310;
 
-const operatorId = 7797626310;
-const notifiedUsers = new Set(); // Чтобы не дублировать автоответ клиенту
+const translations = {
+  ru: {
+    greeting: "👋 Привет! Я ассистент A.D.E.I.T.\n\nЯ помогу тебе с вопросами по amoCRM. Просто задай свой вопрос!",
+    waiting: "📞 Вам ответит первый освободившийся сотрудник. Спасибо за ожидание!",
+  },
+  uz: {
+    greeting: "👋 Salom! Men A.D.E.I.T. yordamchisiman.\n\nMen amoCRM bo‘yicha savollarga yordam beraman. Savolingizni yuboring!",
+    waiting: "📞 Birinchi bo'lib bo'shashgan xodim javob beradi. Kutganingiz uchun rahmat!",
+  },
+  kz: {
+    greeting: "👋 Сәлем! Мен A.D.E.I.T. көмекшісімін.\n\nМен amoCRM бойынша сұрақтарыңа көмектесемін. Сұрағыңды жібер.",
+    waiting: "📞 Бірінші босайтын қызметкер жауап береді. Күткенің үшін рахмет!",
+  },
+  qq: {
+    greeting: "👋 Salam! Men A.D.E.I.T. jardemshisimmen.\n\nMen sagan amoCRM haqqinda jardem beremen. Sawalyndi jaz.",
+    waiting: "📞 Birinşi bo'sağan xodim jawap beredi. Kütkeniñ üşin rahmet!",
+  },
+};
 
-// Клиент пишет сообщение
-bot.on("text", async (ctx) => {
+const userState = {};
+const pendingReplies = {};
+const notifiedClients = new Set();
+
+// Загружаем уже уведомлённых клиентов из файла
+const notifiedClientsFile = path.join(__dirname, 'notified_clients.json');
+if (fs.existsSync(notifiedClientsFile)) {
+  const data = fs.readFileSync(notifiedClientsFile, 'utf-8');
+  try {
+    const parsed = JSON.parse(data);
+    parsed.forEach(id => notifiedClients.add(id));
+  } catch (err) {
+    console.error('Ошибка чтения notified_clients.json:', err);
+  }
+}
+
+// Функция для сохранения в файл
+function saveNotifiedClients() {
+  fs.writeFileSync(notifiedClientsFile, JSON.stringify([...notifiedClients]), 'utf-8');
+}
+
+bot.start((ctx) => {
   const userId = ctx.from.id;
-  const messageText = ctx.message.text;
+  userState[userId] = { lang: null, count: 0, tariffSent: false };
+  ctx.reply(
+    "Пожалуйста, выберите язык / Тілді таңдаңыз / Tilni tanlang / Tildi tańlań:",
+    Markup.inlineKeyboard([
+      [{ text: "Русский 🇷🇺", callback_data: "ru" }],
+      [{ text: "Каракалпакский 🇷🇼", callback_data: "qq" }],
+      [{ text: "Узбекский 🇺🇿", callback_data: "uz" }],
+      [{ text: "Казахский 🇰🇿", callback_data: "kz" }],
+    ])
+  );
+});
 
-  // Если пишет не оператор
-  if (userId !== operatorId) {
-    // Ответить клиенту только один раз
-    if (!notifiedUsers.has(userId)) {
-      await ctx.reply("Спасибо за обращение! С вами обязательно свяжутся.");
-      notifiedUsers.add(userId);
-    }
+bot.action(["ru", "qq", "uz", "kz"], (ctx) => {
+  const userId = ctx.from.id;
+  const lang = ctx.match[0];
+  if (!userState[userId]) userState[userId] = { count: 0, tariffSent: false };
+  userState[userId].lang = lang;
+  userState[userId].count = 0;
+  userState[userId].tariffSent = false;
+  ctx.answerCbQuery();
+  ctx.reply(translations[lang].greeting);
 
-    // Переслать оператору с кнопкой ответа
-    await bot.telegram.sendMessage(
-      operatorId,
-      `Сообщение от клиента\nID: ${userId}\nТекст: ${messageText}`,
-      Markup.inlineKeyboard([
-        Markup.button.callback("Ответить", `reply_${userId}_${messageText}`),
-      ])
-    );
+  // Отправляем сообщение один раз о том, что с клиентом свяжется оператор
+  if (!notifiedClients.has(userId)) {
+    notifiedClients.add(userId);
+    saveNotifiedClients();
+    ctx.reply("📞 С вами обязательно свяжется оператор.");
   }
 });
 
-// Оператор нажимает кнопку "Ответить"
+// --- Ответ от оператора по кнопке ---
 bot.on("callback_query", async (ctx) => {
   const data = ctx.callbackQuery.data;
 
   if (data.startsWith("reply_")) {
-    const [, userId, ...textParts] = data.split("_");
-    const originalText = textParts.join("_");
+    const userId = data.split("_")[1];
+    pendingReplies[ctx.from.id] = userId;
 
-    ctx.session = ctx.session || {};
-    ctx.session.replyTo = userId;
-
-    await ctx.reply(`Напишите ответ для клиента ID ${userId}:`);
+    await ctx.answerCbQuery();
+    await ctx.reply("✍️ Напишите ответ для клиента, и он получит его напрямую.");
   }
-
-  await ctx.answerCbQuery(); // Убирает "загрузка" у кнопки
 });
 
-// Оператор пишет ответ
+// --- Обработка всех входящих сообщений ---
 bot.on("text", async (ctx) => {
-  const userId = ctx.from.id;
-  const messageText = ctx.message.text;
+  const senderId = ctx.from.id;
 
-  if (userId === operatorId && ctx.session && ctx.session.replyTo) {
-    const targetId = ctx.session.replyTo;
+  // Если оператор отвечает клиенту
+  if (pendingReplies[senderId]) {
+    const targetUserId = pendingReplies[senderId];
+    delete pendingReplies[senderId];
 
-    await bot.telegram.sendMessage(targetId, messageText);
-    await ctx.reply("Ответ отправлен клиенту.");
-    delete ctx.session.replyTo;
+    const replyText = ctx.message?.text;
+    if (!replyText) {
+      await ctx.reply("❌ Ошибка: пустой текст сообщения.");
+      return;
+    }
+
+    try {
+      await ctx.telegram.sendMessage(targetUserId, replyText);
+      await ctx.reply("✅ Ответ отправлен клиенту.");
+    } catch (error) {
+      console.error("Ошибка при отправке ответа клиенту:", error);
+      await ctx.reply("❌ Ошибка при отправке ответа клиенту.");
+    }
+    return;
+  }
+
+  // Обработка сообщений от клиентов
+  const lang = userState[senderId]?.lang;
+  if (lang) {
+    await ctx.reply(translations[lang].waiting);
+  }
+
+  // Пересылаем владельцу с кнопкой для ответа
+  try {
+    await ctx.telegram.sendMessage(
+      OWNER_ID,
+      `💬 Сообщение от клиента\nID: ${senderId}\nТекст: ${ctx.message.text}`,
+      Markup.inlineKeyboard([
+        [Markup.button.callback("Ответить клиенту", `reply_${senderId}`)],
+      ])
+    );
+  } catch (err) {
+    console.error("Ошибка при пересылке сообщения владельцу:", err);
   }
 });
 
-// Express сервер для пинга Glitch
-app.get("/", (req, res) => {
-  res.send("Бот работает!");
-});
-app.listen(3000, () => {
-  console.log("Express server is running");
+bot.launch().then(() => {
+  console.log("✅ Бот A.D.E.I.T. запущен и готов к работе");
 });
 
-// Запуск бота
-bot.launch();
 
 
 

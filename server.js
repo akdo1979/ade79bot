@@ -1,6 +1,8 @@
 require("dotenv").config();
+const Fastify = require("fastify");
 const { Telegraf, Markup } = require("telegraf");
 
+const fastify = Fastify({ logger: false });
 const bot = new Telegraf(process.env.TELEGRAM_TOKEN);
 const OWNER_ID = 7797626310;
 
@@ -26,7 +28,6 @@ const translations = {
 const userState = {};
 const pendingReplies = {};
 
-// --- Команда /start и выбор языка ---
 bot.start((ctx) => {
   const userId = ctx.from.id;
   userState[userId] = { lang: null, count: 0, tariffSent: false, notified: false };
@@ -41,7 +42,6 @@ bot.start((ctx) => {
   );
 });
 
-// --- Обработка выбора языка ---
 bot.action(["ru", "qq", "uz", "kz"], async (ctx) => {
   const userId = ctx.from.id;
   const lang = ctx.match.input;
@@ -59,11 +59,9 @@ bot.action(["ru", "qq", "uz", "kz"], async (ctx) => {
   await ctx.reply(translations[lang].greeting);
 });
 
-// --- Обработка текстов (от клиентов и оператора) ---
 bot.on("text", async (ctx) => {
   const senderId = ctx.from.id;
 
-  // Если оператор отвечает клиенту
   if (pendingReplies[senderId]) {
     const targetUserId = pendingReplies[senderId];
     delete pendingReplies[senderId];
@@ -85,7 +83,6 @@ bot.on("text", async (ctx) => {
     return;
   }
 
-  // Сообщение от клиента
   const lang = userState[senderId]?.lang || "ru";
 
   if (!userState[senderId]) {
@@ -110,7 +107,6 @@ bot.on("text", async (ctx) => {
   }
 });
 
-// --- Кнопка "Ответить клиенту" ---
 bot.on("callback_query", async (ctx) => {
   const data = ctx.callbackQuery.data;
 
@@ -123,10 +119,27 @@ bot.on("callback_query", async (ctx) => {
   }
 });
 
-// --- Запуск ---
+// --- Fastify-пинг для UptimeRobot ---
+fastify.get("/", async (request, reply) => {
+  return "Bot is alive!";
+});
+
+// --- Запуск Fastify-сервера ---
+const PORT = process.env.PORT || 3000;
+fastify.listen({ port: PORT, host: "0.0.0.0" }, (err) => {
+  if (err) {
+    console.error("Ошибка запуска Fastify:", err);
+    process.exit(1);
+  }
+  console.log(`🌐 Fastify сервер работает на порту ${PORT}`);
+});
+
+// --- Запуск Telegram-бота ---
 bot.launch().then(() => {
   console.log("✅ Бот A.D.E.I.T. запущен и готов к работе");
 });
+
+
 
 
 

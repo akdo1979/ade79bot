@@ -17,7 +17,7 @@
     "telegraf": "^4.16.3"
   },
   "engines": {
-    "node": "14.x"
+    "node": "18.x"
   },
   "repository": {
     "url": "https://glitch.com/edit/#!/glitch-hello-node"

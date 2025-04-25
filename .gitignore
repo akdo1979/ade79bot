@@ -1,0 +1,4 @@
+.env
+.bash_history
+.node-gyp
+pnpm-debug.log

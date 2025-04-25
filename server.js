@@ -33,11 +33,11 @@ bot.start((ctx) => {
   userState[userId] = { lang: null, count: 0, tariffSent: false, notified: false };
   ctx.reply(
     "Пожалуйста, выберите язык / Тілді таңдаңыз / Tilni tanlang / Tildi tańlań:",
-    Markup.inlineKeyboard([
-      [{ text: "Русский 🇷🇺", callback_data: "ru" }],
-      [{ text: "Каракалпакский 🇷🇼", callback_data: "qq" }],
-      [{ text: "Узбекский 🇺🇿", callback_data: "uz" }],
-      [{ text: "Казахский 🇰🇿", callback_data: "kz" }],
+    Markup.inlineKeyboard([ 
+      [{ text: "Русский 🇷🇺", callback_data: "ru" }], 
+      [{ text: "Каракалпакский 🇷🇼", callback_data: "qq" }], 
+      [{ text: "Узбекский 🇺🇿", callback_data: "uz" }], 
+      [{ text: "Казахский 🇰🇿", callback_data: "kz" }], 
     ])
   );
 });
@@ -98,8 +98,8 @@ bot.on("text", async (ctx) => {
     await ctx.telegram.sendMessage(
       OWNER_ID,
       `💬 Сообщение от клиента\nID: ${senderId}\nТекст: ${ctx.message.text}\nЯзык: ${translations[lang] ? lang : 'ru'}`,
-      Markup.inlineKeyboard([
-        [Markup.button.callback("Ответить клиенту", `reply_${senderId}`)],
+      Markup.inlineKeyboard([ 
+        [Markup.button.callback("Ответить клиенту", `reply_${senderId}`)] 
       ])
     );
   } catch (error) {

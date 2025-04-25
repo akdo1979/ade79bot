@@ -134,13 +134,6 @@ fastify.listen({ port: PORT, host: "0.0.0.0" }, (err) => {
   console.log(`🌐 Fastify сервер работает на порту ${PORT}`);
 });
 
-// --- Telegram-пинг каждую 1 минуту ---
-setInterval(() => {
-  bot.telegram.getMe()
-    .then(() => console.log("📡 Telegram-пинг выполнен"))
-    .catch(err => console.error("❌ Ошибка Telegram-пинга:", err));
-}, 1 * 60 * 1000); // каждую 1 минуту
-
 // --- Запуск Telegram-бота ---
 bot.launch().then(() => {
   console.log("✅ Бот A.D.E.I.T. запущен и готов к работе");

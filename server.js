@@ -33,11 +33,11 @@ bot.start((ctx) => {
   userState[userId] = { lang: null, count: 0, tariffSent: false, notified: false };
   ctx.reply(
     "Пожалуйста, выберите язык / Тілді таңдаңыз / Tilni tanlang / Tildi tańlań:",
-    Markup.inlineKeyboard([ 
-      [{ text: "Русский 🇷🇺", callback_data: "ru" }], 
-      [{ text: "Каракалпакский 🇷🇼", callback_data: "qq" }], 
-      [{ text: "Узбекский 🇺🇿", callback_data: "uz" }], 
-      [{ text: "Казахский 🇰🇿", callback_data: "kz" }], 
+    Markup.inlineKeyboard([
+      [{ text: "Русский 🇷🇺", callback_data: "ru" }],
+      [{ text: "Каракалпакский 🇷🇼", callback_data: "qq" }],
+      [{ text: "Узбекский 🇺🇿", callback_data: "uz" }],
+      [{ text: "Казахский 🇰🇿", callback_data: "kz" }],
     ])
   );
 });
@@ -98,8 +98,8 @@ bot.on("text", async (ctx) => {
     await ctx.telegram.sendMessage(
       OWNER_ID,
       `💬 Сообщение от клиента\nID: ${senderId}\nТекст: ${ctx.message.text}\nЯзык: ${translations[lang] ? lang : 'ru'}`,
-      Markup.inlineKeyboard([ 
-        [Markup.button.callback("Ответить клиенту", `reply_${senderId}`)] 
+      Markup.inlineKeyboard([
+        [Markup.button.callback("Ответить клиенту", `reply_${senderId}`)]
       ])
     );
   } catch (error) {
@@ -134,10 +134,18 @@ fastify.listen({ port: PORT, host: "0.0.0.0" }, (err) => {
   console.log(`🌐 Fastify сервер работает на порту ${PORT}`);
 });
 
+// --- Telegram-пинг каждые 5 минут ---
+setInterval(() => {
+  bot.telegram.getMe()
+    .then(() => console.log("📡 Telegram-пинг выполнен"))
+    .catch(err => console.error("❌ Ошибка Telegram-пинга:", err));
+}, 5 * 60 * 1000); // каждые 5 минут
+
 // --- Запуск Telegram-бота ---
 bot.launch().then(() => {
   console.log("✅ Бот A.D.E.I.T. запущен и готов к работе");
 });
+
 
 
 

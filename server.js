@@ -50,9 +50,9 @@ bot.start(async (ctx) => {
     "Пожалуйста, выберите язык / Тілді таңдаңыз / Tilni tanlang / Tildi tańlań:",
     Markup.inlineKeyboard([
       [{ text: "Русский 🇷🇺", callback_data: "ru" }],
-      [{ text: "Каракалпакский 🇷🇼", callback_data: "qq" }],
-      [{ text: "Узбекский 🇺🇿", callback_data: "uz" }],
-      [{ text: "Казахский 🇰🇿", callback_data: "kz" }],
+      [{ text: "Qaraqalpaqsha 🇷🇼", callback_data: "qq" }],
+      [{ text: "O‘zbekcha 🇺🇿", callback_data: "uz" }],
+      [{ text: "Қазақша 🇰🇿", callback_data: "kz" }],
     ])
   );
 });

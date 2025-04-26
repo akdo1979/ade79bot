@@ -28,10 +28,10 @@ const translations = {
 const userState = {};
 const pendingReplies = {};
 
-bot.start((ctx) => {
+bot.start(async (ctx) => {
   const userId = ctx.from.id;
   userState[userId] = { lang: null, count: 0, tariffSent: false, notified: false };
-  ctx.reply(
+  await ctx.reply(
     "Пожалуйста, выберите язык / Тілді таңдаңыз / Tilni tanlang / Tildi tańlań:",
     Markup.inlineKeyboard([
       [{ text: "Русский 🇷🇺", callback_data: "ru" }],
@@ -55,7 +55,7 @@ bot.action(["ru", "qq", "uz", "kz"], async (ctx) => {
   userState[userId].tariffSent = false;
   userState[userId].notified = false;
 
-  await ctx.answerCbQuery();
+  await ctx.answerCbQuery(); // обязательно отвечаем на callback
   await ctx.reply(translations[lang].greeting);
 });
 
@@ -114,8 +114,11 @@ bot.on("callback_query", async (ctx) => {
     const userId = data.split("_")[1];
     pendingReplies[ctx.from.id] = userId;
 
-    await ctx.answerCbQuery();
+    await ctx.answerCbQuery(); // обязательно отвечаем на callback
     await ctx.reply("✍️ Напишите ответ для клиента, и он получит его напрямую.");
+  } else {
+    // чтобы на другие случайные callback-и отвечать и избежать ошибок
+    await ctx.answerCbQuery();
   }
 });
 
@@ -138,6 +141,7 @@ fastify.listen({ port: PORT, host: "0.0.0.0" }, (err) => {
 bot.launch().then(() => {
   console.log("✅ Бот A.D.E.I.T. запущен и готов к работе");
 });
+
 
 
 

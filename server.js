@@ -3,32 +3,9 @@ const Fastify = require("fastify");
 const { Telegraf, Markup } = require("telegraf");
 const fs = require("fs");
 
-const USERS_FILE = "users.json";
-
 const fastify = Fastify({ logger: false });
 const bot = new Telegraf(process.env.TELEGRAM_TOKEN);
 const OWNER_ID = 7797626310;
-
-// Загрузка состояния пользователей
-let userState = {};
-if (fs.existsSync(USERS_FILE)) {
-  try {
-    userState = JSON.parse(fs.readFileSync(USERS_FILE, "utf8"));
-    console.log("✅ Загружены данные пользователей из файла.");
-  } catch (err) {
-    console.error("❌ Ошибка загрузки users.json:", err);
-    userState = {};
-  }
-}
-
-// Функция сохранения состояния пользователей
-function saveUserState() {
-  try {
-    fs.writeFileSync(USERS_FILE, JSON.stringify(userState, null, 2));
-  } catch (err) {
-    console.error("❌ Ошибка записи users.json:", err);
-  }
-}
 
 const translations = {
   ru: {
@@ -49,14 +26,26 @@ const translations = {
   },
 };
 
+// Чтение состояния пользователей
+let users = {};
+try {
+  users = JSON.parse(fs.readFileSync("users.json"));
+} catch (error) {
+  console.error("Ошибка чтения users.json:", error);
+}
+
+// Сохранять состояние пользователей
+function saveUsers() {
+  fs.writeFileSync("users.json", JSON.stringify(users, null, 2));
+}
+
 const pendingReplies = {};
 
 bot.start(async (ctx) => {
   const userId = ctx.from.id;
-  if (!userState[userId]) {
-    userState[userId] = { lang: null, tariffSent: false, notified: false };
-    saveUserState();
-  }
+  users[userId] = { lang: null, notified: false };
+  saveUsers();
+
   await ctx.reply(
     "Пожалуйста, выберите язык / Тілді таңдаңыз / Tilni tanlang / Tildi tańlań:",
     Markup.inlineKeyboard([
@@ -72,12 +61,11 @@ bot.action(["ru", "qq", "uz", "kz"], async (ctx) => {
   const userId = ctx.from.id;
   const lang = ctx.match.input;
 
-  if (!userState[userId]) {
-    userState[userId] = { tariffSent: false, notified: false };
+  if (!users[userId]) {
+    users[userId] = { notified: false };
   }
-
-  userState[userId].lang = lang;
-  saveUserState();
+  users[userId].lang = lang;
+  saveUsers();
 
   await ctx.answerCbQuery();
   await ctx.reply(translations[lang].greeting);
@@ -86,7 +74,6 @@ bot.action(["ru", "qq", "uz", "kz"], async (ctx) => {
 bot.on("text", async (ctx) => {
   const senderId = ctx.from.id;
 
-  // --- Ответ владельца клиенту ---
   if (pendingReplies[senderId]) {
     const targetUserId = pendingReplies[senderId];
     delete pendingReplies[senderId];
@@ -108,24 +95,22 @@ bot.on("text", async (ctx) => {
     return;
   }
 
-  // --- Новый клиент пишет ---
-  if (!userState[senderId]) {
-    userState[senderId] = { lang: "ru", tariffSent: false, notified: false };
-    saveUserState();
+  const lang = users[senderId]?.lang || "ru";
+
+  if (!users[senderId]) {
+    users[senderId] = { lang, notified: false };
   }
 
-  const lang = userState[senderId].lang || "ru";
-
-  if (userState[senderId].notified !== true) {
+  if (!users[senderId].notified) {
     await ctx.reply(translations[lang].waiting);
-    userState[senderId].notified = true;
-    saveUserState();
+    users[senderId].notified = true;
+    saveUsers();
   }
 
   try {
     await ctx.telegram.sendMessage(
       OWNER_ID,
-      `💬 Сообщение от клиента\nID: ${senderId}\nТекст: ${ctx.message.text}\nЯзык: ${lang}`,
+      `💬 Сообщение от клиента\nID: ${senderId}\nТекст: ${ctx.message.text}\nЯзык: ${translations[lang] ? lang : "ru"}`,
       Markup.inlineKeyboard([
         [Markup.button.callback("Ответить клиенту", `reply_${senderId}`)]
       ])
@@ -149,12 +134,12 @@ bot.on("callback_query", async (ctx) => {
   }
 });
 
-// --- Fastify-пинг для UptimeRobot ---
+// Fastify-пинг
 fastify.get("/", async (request, reply) => {
   return "Bot is alive!";
 });
 
-// --- Запуск Fastify-сервера ---
+// Запуск сервера
 const PORT = process.env.PORT || 10000;
 fastify.listen({ port: PORT, host: "0.0.0.0" }, (err) => {
   if (err) {
@@ -164,10 +149,11 @@ fastify.listen({ port: PORT, host: "0.0.0.0" }, (err) => {
   console.log(`🌐 Fastify сервер работает на порту ${PORT}`);
 });
 
-// --- Запуск Telegram-бота ---
+// Запуск бота
 bot.launch().then(() => {
   console.log("✅ Бот A.D.E.I.T. запущен и готов к работе");
 });
+
 
 
 

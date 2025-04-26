@@ -37,7 +37,7 @@ const translations = {
   },
   uz: {
     greeting: "👋 Salom! Men A.D.E.I.T. yordamchisiman.\n\nMen amoCRM bo‘yicha savollarga yordam beraman. Savolingizni yuboring!",
-    waiting: "📞 Birinchi bo'lib bo'shashgan xodim javob beradi. Kutganingiz uchun rahmat!",
+    waiting: "📞 Birinchi bo'shashgan xodim javob beradi. Kutganingiz uchun rahmat!",
   },
   kz: {
     greeting: "👋 Сәлем! Мен A.D.E.I.T. көмекшісімін.\n\nМен amoCRM бойынша сұрақтарыңа көмектесемін. Сұрағыңды жібер.",
@@ -77,7 +77,6 @@ bot.action(["ru", "qq", "uz", "kz"], async (ctx) => {
   }
 
   userState[userId].lang = lang;
-  userState[userId].notified = false;
   saveUserState();
 
   await ctx.answerCbQuery();
@@ -87,6 +86,7 @@ bot.action(["ru", "qq", "uz", "kz"], async (ctx) => {
 bot.on("text", async (ctx) => {
   const senderId = ctx.from.id;
 
+  // --- Ответ владельца клиенту ---
   if (pendingReplies[senderId]) {
     const targetUserId = pendingReplies[senderId];
     delete pendingReplies[senderId];
@@ -108,14 +108,15 @@ bot.on("text", async (ctx) => {
     return;
   }
 
-  const lang = userState[senderId]?.lang || "ru";
-
+  // --- Новый клиент пишет ---
   if (!userState[senderId]) {
-    userState[senderId] = { lang, tariffSent: false, notified: false };
+    userState[senderId] = { lang: "ru", tariffSent: false, notified: false };
     saveUserState();
   }
 
-  if (!userState[senderId].notified) {
+  const lang = userState[senderId].lang || "ru";
+
+  if (userState[senderId].notified !== true) {
     await ctx.reply(translations[lang].waiting);
     userState[senderId].notified = true;
     saveUserState();
@@ -124,7 +125,7 @@ bot.on("text", async (ctx) => {
   try {
     await ctx.telegram.sendMessage(
       OWNER_ID,
-      `💬 Сообщение от клиента\nID: ${senderId}\nТекст: ${ctx.message.text}\nЯзык: ${translations[lang] ? lang : 'ru'}`,
+      `💬 Сообщение от клиента\nID: ${senderId}\nТекст: ${ctx.message.text}\nЯзык: ${lang}`,
       Markup.inlineKeyboard([
         [Markup.button.callback("Ответить клиенту", `reply_${senderId}`)]
       ])
@@ -167,6 +168,7 @@ fastify.listen({ port: PORT, host: "0.0.0.0" }, (err) => {
 bot.launch().then(() => {
   console.log("✅ Бот A.D.E.I.T. запущен и готов к работе");
 });
+
 
 
 

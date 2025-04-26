@@ -1,10 +1,34 @@
 require("dotenv").config();
 const Fastify = require("fastify");
 const { Telegraf, Markup } = require("telegraf");
+const fs = require("fs");
+
+const USERS_FILE = "users.json";
 
 const fastify = Fastify({ logger: false });
 const bot = new Telegraf(process.env.TELEGRAM_TOKEN);
 const OWNER_ID = 7797626310;
+
+// Загрузка состояния пользователей
+let userState = {};
+if (fs.existsSync(USERS_FILE)) {
+  try {
+    userState = JSON.parse(fs.readFileSync(USERS_FILE, "utf8"));
+    console.log("✅ Загружены данные пользователей из файла.");
+  } catch (err) {
+    console.error("❌ Ошибка загрузки users.json:", err);
+    userState = {};
+  }
+}
+
+// Функция сохранения состояния пользователей
+function saveUserState() {
+  try {
+    fs.writeFileSync(USERS_FILE, JSON.stringify(userState, null, 2));
+  } catch (err) {
+    console.error("❌ Ошибка записи users.json:", err);
+  }
+}
 
 const translations = {
   ru: {
@@ -25,12 +49,14 @@ const translations = {
   },
 };
 
-const userState = {};
 const pendingReplies = {};
 
 bot.start(async (ctx) => {
   const userId = ctx.from.id;
-  userState[userId] = { lang: null, count: 0, tariffSent: false, notified: false };
+  if (!userState[userId]) {
+    userState[userId] = { lang: null, tariffSent: false, notified: false };
+    saveUserState();
+  }
   await ctx.reply(
     "Пожалуйста, выберите язык / Тілді таңдаңыз / Tilni tanlang / Tildi tańlań:",
     Markup.inlineKeyboard([
@@ -47,15 +73,14 @@ bot.action(["ru", "qq", "uz", "kz"], async (ctx) => {
   const lang = ctx.match.input;
 
   if (!userState[userId]) {
-    userState[userId] = { count: 0, tariffSent: false, notified: false };
+    userState[userId] = { tariffSent: false, notified: false };
   }
 
   userState[userId].lang = lang;
-  userState[userId].count = 0;
-  userState[userId].tariffSent = false;
   userState[userId].notified = false;
+  saveUserState();
 
-  await ctx.answerCbQuery(); // обязательно отвечаем на callback
+  await ctx.answerCbQuery();
   await ctx.reply(translations[lang].greeting);
 });
 
@@ -86,12 +111,14 @@ bot.on("text", async (ctx) => {
   const lang = userState[senderId]?.lang || "ru";
 
   if (!userState[senderId]) {
-    userState[senderId] = { lang, count: 0, tariffSent: false, notified: false };
+    userState[senderId] = { lang, tariffSent: false, notified: false };
+    saveUserState();
   }
 
   if (!userState[senderId].notified) {
     await ctx.reply(translations[lang].waiting);
     userState[senderId].notified = true;
+    saveUserState();
   }
 
   try {
@@ -114,10 +141,9 @@ bot.on("callback_query", async (ctx) => {
     const userId = data.split("_")[1];
     pendingReplies[ctx.from.id] = userId;
 
-    await ctx.answerCbQuery(); // обязательно отвечаем на callback
+    await ctx.answerCbQuery();
     await ctx.reply("✍️ Напишите ответ для клиента, и он получит его напрямую.");
   } else {
-    // чтобы на другие случайные callback-и отвечать и избежать ошибок
     await ctx.answerCbQuery();
   }
 });
@@ -141,6 +167,7 @@ fastify.listen({ port: PORT, host: "0.0.0.0" }, (err) => {
 bot.launch().then(() => {
   console.log("✅ Бот A.D.E.I.T. запущен и готов к работе");
 });
+
 
 
 

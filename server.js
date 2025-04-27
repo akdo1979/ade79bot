@@ -68,7 +68,9 @@ bot.action(["ru", "qq", "uz", "kz"], async (ctx) => {
   saveUsers();
 
   await ctx.answerCbQuery();
+  await ctx.editMessageReplyMarkup({}); // Убираем кнопки
   await ctx.reply(translations[lang].greeting);
+
 });
 
 bot.on("text", async (ctx) => {

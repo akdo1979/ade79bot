@@ -67,10 +67,24 @@ bot.action(["ru", "qq", "uz", "kz"], async (ctx) => {
   users[userId].lang = lang;
   saveUsers();
 
-  await ctx.answerCbQuery();
-  await ctx.editMessageReplyMarkup({}); // Убираем кнопки
-  await ctx.reply(translations[lang].greeting);
+  try {
+    // Сначала заменяем текст на "👌" и убираем кнопки
+    await ctx.editMessageText("👌", { reply_markup: { inline_keyboard: [] } });
 
+    // Через 1.5 секунды удаляем сообщение
+    setTimeout(async () => {
+      try {
+        await ctx.deleteMessage();
+      } catch (error) {
+        console.error("Ошибка при удалении сообщения:", error);
+      }
+    }, 1500);
+
+    // После удаления отправляем приветствие
+    await ctx.reply(translations[lang].greeting);
+  } catch (error) {
+    console.error("Ошибка при обработке выбора языка:", error);
+  }
 });
 
 bot.on("text", async (ctx) => {

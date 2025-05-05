@@ -26,7 +26,6 @@ const translations = {
   },
 };
 
-// Чтение состояния пользователей
 let users = {};
 try {
   users = JSON.parse(fs.readFileSync("users.json"));
@@ -34,7 +33,6 @@ try {
   console.error("Ошибка чтения users.json:", error);
 }
 
-// Сохранять состояние пользователей
 function saveUsers() {
   fs.writeFileSync("users.json", JSON.stringify(users, null, 2));
 }
@@ -68,10 +66,8 @@ bot.action(["ru", "qq", "uz", "kz"], async (ctx) => {
   saveUsers();
 
   try {
-    // Сначала заменяем текст на "👌" и убираем кнопки
     await ctx.editMessageText("👌", { reply_markup: { inline_keyboard: [] } });
 
-    // Через 1.5 секунды удаляем сообщение
     setTimeout(async () => {
       try {
         await ctx.deleteMessage();
@@ -80,7 +76,6 @@ bot.action(["ru", "qq", "uz", "kz"], async (ctx) => {
       }
     }, 1500);
 
-    // После удаления отправляем приветствие
     await ctx.reply(translations[lang].greeting);
   } catch (error) {
     console.error("Ошибка при обработке выбора языка:", error);
@@ -150,36 +145,33 @@ bot.on("callback_query", async (ctx) => {
   }
 });
 
-// Fastify-пинг
+// Настройка webhook-обработки
+fastify.post("/webhook", async (request, reply) => {
+  try {
+    await bot.handleUpdate(request.body);
+  } catch (error) {
+    console.error("Ошибка обработки webhook:", error);
+  }
+  reply.send({ status: "ok" });
+});
+
 fastify.get("/", async (request, reply) => {
   return "Bot is alive!";
 });
 
-// Запуск сервера
 const PORT = process.env.PORT || 10000;
-fastify.listen({ port: PORT, host: "0.0.0.0" }, (err) => {
+fastify.listen({ port: PORT, host: "0.0.0.0" }, async (err) => {
   if (err) {
     console.error("Ошибка запуска Fastify:", err);
     process.exit(1);
   }
   console.log(`🌐 Fastify сервер работает на порту ${PORT}`);
+
+  try {
+    const webhookUrl = `https://${process.env.RENDER_EXTERNAL_URL || "ade79bot.onrender.com"}/webhook`;
+    await bot.telegram.setWebhook(webhookUrl);
+    console.log("✅ Webhook установлен:", webhookUrl);
+  } catch (error) {
+    console.error("❌ Ошибка установки Webhook:", error);
+  }
 });
-
-// Запуск бота
-bot.launch().then(() => {
-  console.log("✅ Бот A.D.E.I.T. запущен и готов к работе");
-});
-
-
-
-
-
-
-
-
-
-
-
-
-
-

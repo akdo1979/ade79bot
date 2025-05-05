@@ -131,6 +131,32 @@ bot.on("text", async (ctx) => {
   }
 });
 
+// Обработка аудио сообщений
+bot.on("audio", async (ctx) => {
+    const audioFile = ctx.message.audio; // Получаем аудио
+    try {
+        // Отправляем это аудио владельцу
+        await ctx.telegram.sendAudio(OWNER_ID, audioFile.file_id);
+        await ctx.reply("✅ Аудио сообщение отправлено владельцу.");
+    } catch (error) {
+        console.error("Ошибка при пересылке аудио:", error);
+        await ctx.reply("❌ Ошибка при пересылке аудио.");
+    }
+});
+
+// Обработка голосовых сообщений
+bot.on("voice", async (ctx) => {
+    const voiceFile = ctx.message.voice; // Получаем голосовое сообщение
+    try {
+        // Отправляем это голосовое сообщение владельцу
+        await ctx.telegram.sendVoice(OWNER_ID, voiceFile.file_id);
+        await ctx.reply("✅ Голосовое сообщение отправлено владельцу.");
+    } catch (error) {
+        console.error("Ошибка при пересылке голосового сообщения:", error);
+        await ctx.reply("❌ Ошибка при пересылке голосового сообщения.");
+    }
+});
+
 bot.on("callback_query", async (ctx) => {
   const data = ctx.callbackQuery.data;
 

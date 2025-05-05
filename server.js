@@ -46,7 +46,7 @@ bot.start(async (ctx) => {
 
   await ctx.reply(
     "Пожалуйста, выберите язык / Тілді таңдаңыз / Tilni tanlang / Tildi tańlań:",
-    Markup.inlineKeyboard([
+    Markup.inlineKeyboard([ 
       [{ text: "Русский 🇷🇺", callback_data: "ru" }],
       [{ text: "Qaraqalpaqsha 🇷🇼", callback_data: "qq" }],
       [{ text: "O‘zbekcha 🇺🇿", callback_data: "uz" }],
@@ -173,17 +173,48 @@ bot.on("voice", async (ctx) => {
   }
 });
 
-bot.on("callback_query", async (ctx) => {
+// Обработка кнопки "Ответить клиенту"
+bot.on('callback_query', async (ctx) => {
   const data = ctx.callbackQuery.data;
 
-  if (data.startsWith("reply_")) {
-    const userId = data.split("_")[1];
+  if (data.startsWith('reply_')) {
+    const userId = data.split('_')[1];
     pendingReplies[ctx.from.id] = userId;
 
     await ctx.answerCbQuery();
-    await ctx.reply("✍️ Напишите ответ для клиента, и он получит его напрямую.");
+    await ctx.reply("🎤 Запишите голосовой ответ для клиента.");
   } else {
     await ctx.answerCbQuery();
+  }
+});
+
+// Обработка голосовых сообщений от владельца
+bot.on('voice', async (ctx) => {
+  const senderId = ctx.from.id;
+  const lang = users[senderId]?.lang || 'ru';
+
+  // Проверяем, был ли запрос на ответ от владельца
+  const targetUserId = pendingReplies[senderId];
+
+  if (!targetUserId) {
+    return;  // Если нет, ничего не делаем
+  }
+
+  // Получаем файл голосового сообщения
+  const voiceFile = ctx.message.voice;
+  
+  try {
+    // Пересылаем голосовое сообщение клиенту
+    await ctx.telegram.sendVoice(targetUserId, voiceFile.file_id);
+    
+    // Отправляем владельцу сообщение о том, что голосовое сообщение было отправлено клиенту
+    await ctx.reply("✅ Голосовое сообщение отправлено клиенту.");
+    
+    // Очищаем очередь ожидания
+    delete pendingReplies[senderId];
+  } catch (error) {
+    console.error("Ошибка при пересылке голосового сообщения:", error);
+    await ctx.reply("❌ Ошибка при пересылке голосового сообщения.");
   }
 });
 

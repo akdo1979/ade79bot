@@ -135,20 +135,20 @@ bot.on("text", async (ctx) => {
 bot.on("audio", async (ctx) => {
   const senderId = ctx.from.id;
   const lang = users[senderId]?.lang || "ru";
-  const audioFile = ctx.message.audio;
+  if (!users[senderId].notified) {
+    await ctx.reply(translations[lang].waiting);
+    users[senderId].notified = true;
+    saveUsers();
+  }
+
+  const audioFile = ctx.message.audio; // Получаем аудио
   try {
-    await ctx.telegram.sendAudio(
-      OWNER_ID,
-      audioFile.file_id,
-      {
-        caption: `🎵 Аудио от клиента\nID: ${senderId}\nЯзык: ${lang}`,
-        reply_markup: Markup.inlineKeyboard([
-          [Markup.button.callback("Ответить клиенту", `reply_${senderId}`)]
-        ])
-      }
-    );
+    // Отправляем это аудио владельцу
+    await ctx.telegram.sendAudio(OWNER_ID, audioFile.file_id);
+    await ctx.telegram.sendMessage(OWNER_ID, `Язык клиента: ${lang}`, Markup.inlineKeyboard([Markup.button.callback("Ответить клиенту", `reply_${senderId}`)]));
   } catch (error) {
     console.error("Ошибка при пересылке аудио:", error);
+    await ctx.reply("❌ Ошибка при пересылке аудио.");
   }
 });
 
@@ -156,20 +156,20 @@ bot.on("audio", async (ctx) => {
 bot.on("voice", async (ctx) => {
   const senderId = ctx.from.id;
   const lang = users[senderId]?.lang || "ru";
-  const voiceFile = ctx.message.voice;
+  if (!users[senderId].notified) {
+    await ctx.reply(translations[lang].waiting);
+    users[senderId].notified = true;
+    saveUsers();
+  }
+
+  const voiceFile = ctx.message.voice; // Получаем голосовое сообщение
   try {
-    await ctx.telegram.sendVoice(
-      OWNER_ID,
-      voiceFile.file_id,
-      {
-        caption: `🎤 Голосовое сообщение от клиента\nID: ${senderId}\nЯзык: ${lang}`,
-        reply_markup: Markup.inlineKeyboard([
-          [Markup.button.callback("Ответить клиенту", `reply_${senderId}`)]
-        ])
-      }
-    );
+    // Отправляем это голосовое сообщение владельцу
+    await ctx.telegram.sendVoice(OWNER_ID, voiceFile.file_id);
+    await ctx.telegram.sendMessage(OWNER_ID, `Язык клиента: ${lang}`, Markup.inlineKeyboard([Markup.button.callback("Ответить клиенту", `reply_${senderId}`)]));
   } catch (error) {
     console.error("Ошибка при пересылке голосового сообщения:", error);
+    await ctx.reply("❌ Ошибка при пересылке голосового сообщения.");
   }
 });
 

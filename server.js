@@ -168,7 +168,7 @@ fastify.listen({ port: PORT, host: "0.0.0.0" }, async (err) => {
   console.log(`🌐 Fastify сервер работает на порту ${PORT}`);
 
   try {
-    const webhookUrl = `https://${process.env.RENDER_EXTERNAL_URL || "ade79bot.onrender.com"}/webhook`;
+    const webhookUrl = `https://${process.env.RENDER_EXTERNAL_URL || "https://ade79bot.onrender.com"}/webhook`;
     await bot.telegram.setWebhook(webhookUrl);
     console.log("✅ Webhook установлен:", webhookUrl);
   } catch (error) {

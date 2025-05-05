@@ -9,20 +9,20 @@ const OWNER_ID = 7797626310;
 
 const translations = {
   ru: {
-    greeting: "👋 Привет! Я ассистент A.D.E.I.T.\n\nЯ помогу тебе с вопросами по amoCRM. Просто задай свой вопрос!",
-    waiting: "📞 Вам ответит первый освободившийся сотрудник. Спасибо за ожидание!",
+    greeting: "\uD83D\uDC4B Привет! Я ассистент A.D.E.I.T.\n\nЯ помогу тебе с вопросами по amoCRM. Просто задай свой вопрос!",
+    waiting: "\uD83D\uDCDE Вам ответит первый освободившийся сотрудник. Спасибо за ожидание!",
   },
   uz: {
-    greeting: "👋 Salom! Men A.D.E.I.T. yordamchisiman.\n\nMen amoCRM bo‘yicha savollarga yordam beraman. Savolingizni yuboring!",
-    waiting: "📞 Birinchi bo'shashgan xodim javob beradi. Kutganingiz uchun rahmat!",
+    greeting: "\uD83D\uDC4B Salom! Men A.D.E.I.T. yordamchisiman.\n\nMen amoCRM bo\u2018yicha savollarga yordam beraman. Savolingizni yuboring!",
+    waiting: "\uD83D\uDCDE Birinchi bo'shashgan xodim javob beradi. Kutganingiz uchun rahmat!",
   },
   kz: {
-    greeting: "👋 Сәлем! Мен A.D.E.I.T. көмекшісімін.\n\nМен amoCRM бойынша сұрақтарыңа көмектесемін. Сұрағыңды жібер.",
-    waiting: "📞 Бірінші босайтын қызметкер жауап береді. Күткенің үшін рахмет!",
+    greeting: "\uD83D\uDC4B \u0421\u04d9\u043b\u0435\u043c! \u041c\u0435\u043d A.D.E.I.T. \u043a\u04e9\u043c\u0435\u043a\u0448\u0456\u0441\u0456\u043c\u0456\u043d.\n\n\u041c\u0435\u043d amoCRM бойынша сұрақтарыңа көмектесемін. Сұрағыңды жібер.",
+    waiting: "\uD83D\uDCDE Бірінші босайтын қызметкер жауап береді. Күткенің үшін рахмет!",
   },
   qq: {
-    greeting: "👋 Salam! Men A.D.E.I.T. jardemshisimmen.\n\nMen sagan amoCRM haqqinda jardem beremen. Sawalyndi jaz.",
-    waiting: "📞 Birinşi bo'sağan xodim jawap beredi. Kütkeniñ üşin rahmet!",
+    greeting: "\uD83D\uDC4B Salam! Men A.D.E.I.T. jardemshisimmen.\n\nMen sagan amoCRM haqqinda jardem beremen. Sawalyndi jaz.",
+    waiting: "\uD83D\uDCDE Birinşi bo'sağan xodim jawap beredi. Kütkeniñ üşin rahmet!",
   },
 };
 
@@ -66,7 +66,7 @@ bot.action(["ru", "qq", "uz", "kz"], async (ctx) => {
   saveUsers();
 
   try {
-    await ctx.editMessageText("👌", { reply_markup: { inline_keyboard: [] } });
+    await ctx.editMessageText("\uD83D\uDC4C", { reply_markup: { inline_keyboard: [] } });
 
     setTimeout(async () => {
       try {
@@ -133,28 +133,58 @@ bot.on("text", async (ctx) => {
 
 // Обработка аудио сообщений
 bot.on("audio", async (ctx) => {
-    const audioFile = ctx.message.audio; // Получаем аудио
-    try {
-        // Отправляем это аудио владельцу
-        await ctx.telegram.sendAudio(OWNER_ID, audioFile.file_id);
-        await ctx.reply("✅ Аудио сообщение отправлено владельцу.");
-    } catch (error) {
-        console.error("Ошибка при пересылке аудио:", error);
-        await ctx.reply("❌ Ошибка при пересылке аудио.");
-    }
+  const senderId = ctx.from.id;
+  const lang = users[senderId]?.lang || "ru";
+
+  if (!users[senderId]) {
+    users[senderId] = { lang, notified: false };
+  }
+
+  if (!users[senderId].notified) {
+    await ctx.reply(translations[lang].waiting);
+    users[senderId].notified = true;
+    saveUsers();
+  }
+
+  const audioFile = ctx.message.audio;
+  try {
+    await ctx.telegram.sendAudio(OWNER_ID, audioFile.file_id, {
+      caption: `🎵 Аудио сообщение от клиента ID: ${senderId}`,
+      reply_markup: Markup.inlineKeyboard([
+        [Markup.button.callback("Ответить клиенту", `reply_${senderId}`)]
+      ])
+    });
+  } catch (error) {
+    console.error("Ошибка при пересылке аудио:", error);
+  }
 });
 
 // Обработка голосовых сообщений
 bot.on("voice", async (ctx) => {
-    const voiceFile = ctx.message.voice; // Получаем голосовое сообщение
-    try {
-        // Отправляем это голосовое сообщение владельцу
-        await ctx.telegram.sendVoice(OWNER_ID, voiceFile.file_id);
-        await ctx.reply("✅ Голосовое сообщение отправлено владельцу.");
-    } catch (error) {
-        console.error("Ошибка при пересылке голосового сообщения:", error);
-        await ctx.reply("❌ Ошибка при пересылке голосового сообщения.");
-    }
+  const senderId = ctx.from.id;
+  const lang = users[senderId]?.lang || "ru";
+
+  if (!users[senderId]) {
+    users[senderId] = { lang, notified: false };
+  }
+
+  if (!users[senderId].notified) {
+    await ctx.reply(translations[lang].waiting);
+    users[senderId].notified = true;
+    saveUsers();
+  }
+
+  const voiceFile = ctx.message.voice;
+  try {
+    await ctx.telegram.sendVoice(OWNER_ID, voiceFile.file_id, {
+      caption: `🎤 Голосовое сообщение от клиента ID: ${senderId}`,
+      reply_markup: Markup.inlineKeyboard([
+        [Markup.button.callback("Ответить клиенту", `reply_${senderId}`)]
+      ])
+    });
+  } catch (error) {
+    console.error("Ошибка при пересылке голосового сообщения:", error);
+  }
 });
 
 bot.on("callback_query", async (ctx) => {
@@ -171,7 +201,6 @@ bot.on("callback_query", async (ctx) => {
   }
 });
 
-// Настройка webhook-обработки
 fastify.post("/webhook", async (request, reply) => {
   try {
     await bot.handleUpdate(request.body);

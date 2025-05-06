@@ -46,7 +46,7 @@ bot.start(async (ctx) => {
 
   await ctx.reply(
     "Пожалуйста, выберите язык / Тілді таңдаңыз / Tilni tanlang / Tildi tańlań:",
-    Markup.inlineKeyboard([ 
+    Markup.inlineKeyboard([
       [{ text: "Русский 🇷🇺", callback_data: "ru" }],
       [{ text: "Qaraqalpaqsha 🇷🇼", callback_data: "qq" }],
       [{ text: "O‘zbekcha 🇺🇿", callback_data: "uz" }],
@@ -131,48 +131,6 @@ bot.on("text", async (ctx) => {
   }
 });
 
-// Обработка аудио сообщений
-bot.on("audio", async (ctx) => {
-  const senderId = ctx.from.id;
-  const lang = users[senderId]?.lang || "ru";
-  if (!users[senderId].notified) {
-    await ctx.reply(translations[lang].waiting);
-    users[senderId].notified = true;
-    saveUsers();
-  }
-
-  const audioFile = ctx.message.audio; // Получаем аудио
-  try {
-    // Отправляем это аудио владельцу
-    await ctx.telegram.sendAudio(OWNER_ID, audioFile.file_id);
-    await ctx.telegram.sendMessage(OWNER_ID, `Язык клиента: ${lang}`, Markup.inlineKeyboard([Markup.button.callback("Ответить клиенту", `reply_${senderId}`)]));
-  } catch (error) {
-    console.error("Ошибка при пересылке аудио:", error);
-    await ctx.reply("❌ Ошибка при пересылке аудио.");
-  }
-});
-
-// Обработка голосовых сообщений
-bot.on("voice", async (ctx) => {
-  const senderId = ctx.from.id;
-  const lang = users[senderId]?.lang || "ru";
-  if (!users[senderId].notified) {
-    await ctx.reply(translations[lang].waiting);
-    users[senderId].notified = true;
-    saveUsers();
-  }
-
-  const voiceFile = ctx.message.voice; // Получаем голосовое сообщение
-  try {
-    // Отправляем это голосовое сообщение владельцу
-    await ctx.telegram.sendVoice(OWNER_ID, voiceFile.file_id);
-    await ctx.telegram.sendMessage(OWNER_ID, `Язык клиента: ${lang}`, Markup.inlineKeyboard([Markup.button.callback("Ответить клиенту", `reply_${senderId}`)]));
-  } catch (error) {
-    console.error("Ошибка при пересылке голосового сообщения:", error);
-    await ctx.reply("❌ Ошибка при пересылке голосового сообщения.");
-  }
-});
-
 // Обработка кнопки "Ответить клиенту"
 bot.on('callback_query', async (ctx) => {
   const data = ctx.callbackQuery.data;
@@ -188,33 +146,59 @@ bot.on('callback_query', async (ctx) => {
   }
 });
 
-// Обработка голосовых сообщений от владельца
-bot.on('voice', async (ctx) => {
+// Обработка голосовых и аудио сообщений (от клиента и владельца)
+bot.on(["voice", "audio"], async (ctx) => {
   const senderId = ctx.from.id;
-  const lang = users[senderId]?.lang || 'ru';
+  const messageType = ctx.message.voice ? "voice" : "audio";
+  const file = ctx.message[messageType];
+  const lang = users[senderId]?.lang || "ru";
 
-  // Проверяем, был ли запрос на ответ от владельца
   const targetUserId = pendingReplies[senderId];
 
-  if (!targetUserId) {
-    return;  // Если нет, ничего не делаем
+  // === Если это ответ владельца клиенту ===
+  if (senderId === OWNER_ID && targetUserId) {
+    try {
+      if (messageType === "voice") {
+        await ctx.telegram.sendVoice(targetUserId, file.file_id);
+      } else {
+        await ctx.telegram.sendAudio(targetUserId, file.file_id);
+      }
+
+      await ctx.reply("✅ Голосовой ответ клиенту отправлен");
+      delete pendingReplies[senderId];
+    } catch (error) {
+      console.error("Ошибка при пересылке ответа клиенту:", error);
+      await ctx.reply("❌ Ошибка при пересылке голосового или аудио.");
+    }
+    return;
   }
 
-  // Получаем файл голосового сообщения
-  const voiceFile = ctx.message.voice;
-  
+  // === Иначе — это сообщение от клиента владельцу ===
+  if (!users[senderId]) {
+    users[senderId] = { lang, notified: false };
+  }
+
+  if (!users[senderId].notified) {
+    await ctx.reply(translations[lang].waiting);
+    users[senderId].notified = true;
+    saveUsers();
+  }
+
   try {
-    // Пересылаем голосовое сообщение клиенту
-    await ctx.telegram.sendVoice(targetUserId, voiceFile.file_id);
-    
-    // Отправляем владельцу сообщение о том, что голосовое сообщение было отправлено клиенту
-    await ctx.reply("✅ Голосовое сообщение отправлено клиенту.");
-    
-    // Очищаем очередь ожидания
-    delete pendingReplies[senderId];
+    if (messageType === "voice") {
+      await ctx.telegram.sendVoice(OWNER_ID, file.file_id);
+    } else {
+      await ctx.telegram.sendAudio(OWNER_ID, file.file_id);
+    }
+
+    await ctx.telegram.sendMessage(
+      OWNER_ID,
+      `Язык клиента: ${lang}`,
+      Markup.inlineKeyboard([Markup.button.callback("Ответить клиенту", `reply_${senderId}`)])
+    );
   } catch (error) {
-    console.error("Ошибка при пересылке голосового сообщения:", error);
-    await ctx.reply("❌ Ошибка при пересылке голосового сообщения.");
+    console.error("Ошибка при пересылке сообщения от клиента:", error);
+    await ctx.reply("❌ Ошибка при пересылке голосового или аудио.");
   }
 });
 

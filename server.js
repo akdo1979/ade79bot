@@ -37,8 +37,6 @@ function saveUsers() {
   fs.writeFileSync("users.json", JSON.stringify(users, null, 2));
 }
 
-const pendingReplies = {};
-
 bot.start(async (ctx) => {
   const userId = ctx.from.id;
   users[userId] = { lang: null, notified: false };
@@ -85,32 +83,11 @@ bot.action(["ru", "qq", "uz", "kz"], async (ctx) => {
 bot.on("text", async (ctx) => {
   const senderId = ctx.from.id;
 
-  if (pendingReplies[senderId]) {
-    const targetUserId = pendingReplies[senderId];
-    delete pendingReplies[senderId];
-
-    const replyText = ctx.message?.text || "";
-
-    if (!replyText.trim()) {
-      return ctx.reply("❌ Ошибка: пустой текст сообщения.");
-    }
-
-    try {
-      await ctx.telegram.sendMessage(targetUserId, replyText);
-      await ctx.reply("✅ Ответ отправлен клиенту.");
-    } catch (error) {
-      console.error("Ошибка при отправке ответа клиенту:", error);
-      await ctx.reply("❌ Ошибка при отправке ответа клиенту.");
-    }
-
-    return;
-  }
-
-  const lang = users[senderId]?.lang || "ru";
-
   if (!users[senderId]) {
-    users[senderId] = { lang, notified: false };
+    users[senderId] = { lang: "ru", notified: false };
   }
+
+  const lang = users[senderId].lang || "ru";
 
   if (!users[senderId].notified) {
     await ctx.reply(translations[lang].waiting);
@@ -121,7 +98,7 @@ bot.on("text", async (ctx) => {
   try {
     await ctx.telegram.sendMessage(
       OWNER_ID,
-      `💬 Сообщение от клиента\nID: ${senderId}\nТекст: ${ctx.message.text}\nЯзык: ${translations[lang] ? lang : "ru"}`,
+      `💬 Сообщение от клиента\nID: ${senderId}\nТекст: ${ctx.message.text}\nЯзык: ${lang}`,
       Markup.inlineKeyboard([
         [Markup.button.callback("Ответить клиенту", `reply_${senderId}`)]
       ])
@@ -131,52 +108,9 @@ bot.on("text", async (ctx) => {
   }
 });
 
-// Обработка кнопки "Ответить клиенту"
-bot.on('callback_query', async (ctx) => {
-  const data = ctx.callbackQuery.data;
-
-  if (data.startsWith('reply_')) {
-    const userId = data.split('_')[1];
-    pendingReplies[ctx.from.id] = userId;
-
-    await ctx.answerCbQuery();
-    await ctx.reply("🎤 Запишите голосовой ответ для клиента.");
-  } else {
-    await ctx.answerCbQuery();
-  }
-});
-
-// Обработка голосовых и аудио сообщений (от клиента и владельца)
-bot.on(["voice", "audio"], async (ctx) => {
+bot.on("voice", async (ctx) => {
   const senderId = ctx.from.id;
-  const messageType = ctx.message.voice ? "voice" : "audio";
-  const file = ctx.message[messageType];
   const lang = users[senderId]?.lang || "ru";
-
-  const targetUserId = pendingReplies[senderId];
-
-  // === Если это ответ владельца клиенту ===
-  if (senderId === OWNER_ID && targetUserId) {
-    try {
-      if (messageType === "voice") {
-        await ctx.telegram.sendVoice(targetUserId, file.file_id);
-      } else {
-        await ctx.telegram.sendAudio(targetUserId, file.file_id);
-      }
-
-      await ctx.reply("✅ Голосовой ответ клиенту отправлен");
-      delete pendingReplies[senderId];
-    } catch (error) {
-      console.error("Ошибка при пересылке ответа клиенту:", error);
-      await ctx.reply("❌ Ошибка при пересылке голосового или аудио.");
-    }
-    return;
-  }
-
-  // === Иначе — это сообщение от клиента владельцу ===
-  if (!users[senderId]) {
-    users[senderId] = { lang, notified: false };
-  }
 
   if (!users[senderId].notified) {
     await ctx.reply(translations[lang].waiting);
@@ -185,24 +119,46 @@ bot.on(["voice", "audio"], async (ctx) => {
   }
 
   try {
-    if (messageType === "voice") {
-      await ctx.telegram.sendVoice(OWNER_ID, file.file_id);
-    } else {
-      await ctx.telegram.sendAudio(OWNER_ID, file.file_id);
-    }
-
+    await ctx.telegram.sendVoice(OWNER_ID, ctx.message.voice.file_id);
     await ctx.telegram.sendMessage(
       OWNER_ID,
       `Язык клиента: ${lang}`,
-      Markup.inlineKeyboard([Markup.button.callback("Ответить клиенту", `reply_${senderId}`)])
+      Markup.inlineKeyboard([
+        [Markup.button.callback("Ответить клиенту", `reply_${senderId}`)]
+      ])
     );
   } catch (error) {
-    console.error("Ошибка при пересылке сообщения от клиента:", error);
-    await ctx.reply("❌ Ошибка при пересылке голосового или аудио.");
+    console.error("Ошибка при пересылке голосового сообщения:", error);
   }
 });
 
-// Настройка webhook-обработки
+bot.action(/reply_(\d+)/, async (ctx) => {
+  const targetUserId = ctx.match[1];
+  ctx.session = ctx.session || {};
+  ctx.session.replyToUserId = targetUserId;
+  await ctx.answerCbQuery();
+  await ctx.reply("☝️ Ответьте клиенту", { reply_to_message_id: ctx.callbackQuery.message.message_id });
+});
+
+bot.on(["text", "voice"], async (ctx) => {
+  if (!ctx.session || !ctx.session.replyToUserId) return;
+  const targetUserId = ctx.session.replyToUserId;
+  delete ctx.session.replyToUserId;
+
+  try {
+    if (ctx.message.voice) {
+      await ctx.telegram.sendVoice(targetUserId, ctx.message.voice.file_id);
+      await ctx.reply("✅ Голосовое сообщение отправлено клиенту.");
+    } else if (ctx.message.text) {
+      await ctx.telegram.sendMessage(targetUserId, ctx.message.text);
+      await ctx.reply("✅ Ответ отправлен клиенту.");
+    }
+  } catch (error) {
+    console.error("Ошибка при отправке ответа клиенту:", error);
+    await ctx.reply("❌ Ошибка при отправке ответа клиенту.");
+  }
+});
+
 fastify.post("/webhook", async (request, reply) => {
   try {
     await bot.handleUpdate(request.body);

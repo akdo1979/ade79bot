@@ -1,10 +1,12 @@
 require("dotenv").config();
 const Fastify = require("fastify");
-const { Telegraf, Markup } = require("telegraf");
+const { Telegraf, Markup, session } = require("telegraf");
 const fs = require("fs");
 
 const fastify = Fastify({ logger: false });
 const bot = new Telegraf(process.env.TELEGRAM_TOKEN);
+bot.use(session()); // добавляем поддержку сессий
+
 const OWNER_ID = 7797626310;
 
 const translations = {
@@ -83,6 +85,8 @@ bot.action(["ru", "qq", "uz", "kz"], async (ctx) => {
 bot.on("text", async (ctx) => {
   const senderId = ctx.from.id;
 
+  if (senderId === OWNER_ID && ctx.session?.replyToUserId) return; // если это ответ владельца, не обрабатываем здесь
+
   if (!users[senderId]) {
     users[senderId] = { lang: "ru", notified: false };
   }
@@ -110,7 +114,14 @@ bot.on("text", async (ctx) => {
 
 bot.on("voice", async (ctx) => {
   const senderId = ctx.from.id;
+
+  if (senderId === OWNER_ID && ctx.session?.replyToUserId) return; // если это голос владельца — не обрабатываем
+
   const lang = users[senderId]?.lang || "ru";
+
+  if (!users[senderId]) {
+    users[senderId] = { lang, notified: false };
+  }
 
   if (!users[senderId].notified) {
     await ctx.reply(translations[lang].waiting);
@@ -128,7 +139,7 @@ bot.on("voice", async (ctx) => {
       ])
     );
   } catch (error) {
-    console.error("Ошибка при пересылке голосового сообщения:", error);
+    console.error("Ошибка при пересылке голосового сообщения владельцу:", error);
   }
 });
 
@@ -136,13 +147,17 @@ bot.action(/reply_(\d+)/, async (ctx) => {
   const targetUserId = ctx.match[1];
   ctx.session = ctx.session || {};
   ctx.session.replyToUserId = targetUserId;
+  console.log('Set replyToUserId:', targetUserId);
   await ctx.answerCbQuery();
   await ctx.reply("☝️ Ответьте клиенту", { reply_to_message_id: ctx.callbackQuery.message.message_id });
 });
 
 bot.on(["text", "voice"], async (ctx) => {
+  if (ctx.from.id !== OWNER_ID) return; // Обрабатываем только если сообщение от владельца
+
   if (!ctx.session || !ctx.session.replyToUserId) return;
   const targetUserId = ctx.session.replyToUserId;
+  console.log('Replying to user:', targetUserId);
   delete ctx.session.replyToUserId;
 
   try {
@@ -168,7 +183,7 @@ fastify.post("/webhook", async (request, reply) => {
   reply.send({ status: "ok" });
 });
 
-fastify.get("/", async (request, reply) => {
+fastify.get("/", async () => {
   return "Bot is alive!";
 });
 

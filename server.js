@@ -5,7 +5,7 @@ const fs = require("fs");
 
 const fastify = Fastify({ logger: false });
 const bot = new Telegraf(process.env.TELEGRAM_TOKEN);
-bot.use(session()); // включаем поддержку сессий
+bot.use(session()); // оставим, может пригодиться
 
 const OWNER_ID = 7797626310;
 
@@ -38,6 +38,8 @@ try {
 function saveUsers() {
   fs.writeFileSync("users.json", JSON.stringify(users, null, 2));
 }
+
+const ownerReplySession = {}; // для временного хранения reply ID
 
 bot.start(async (ctx) => {
   const userId = ctx.from.id;
@@ -85,8 +87,7 @@ bot.action(["ru", "qq", "uz", "kz"], async (ctx) => {
 // От клиента: текст
 bot.on("text", async (ctx, next) => {
   const senderId = ctx.from.id;
-
-  if (senderId === OWNER_ID && ctx.session?.replyToUserId) return next(); // разрешаем, если ответ
+  if (senderId === OWNER_ID && ownerReplySession[senderId]) return next();
 
   if (!users[senderId]) {
     users[senderId] = { lang: "ru", notified: false };
@@ -116,8 +117,7 @@ bot.on("text", async (ctx, next) => {
 // От клиента: голос
 bot.on("voice", async (ctx, next) => {
   const senderId = ctx.from.id;
-
-  if (senderId === OWNER_ID && ctx.session?.replyToUserId) return next();
+  if (senderId === OWNER_ID && ownerReplySession[senderId]) return next();
 
   const lang = users[senderId]?.lang || "ru";
 
@@ -142,22 +142,25 @@ bot.on("voice", async (ctx, next) => {
   }
 });
 
-// Ответ владельца
+// Ответ владельца — установить ID клиента
 bot.action(/reply_(\d+)/, async (ctx) => {
   const targetUserId = Number(ctx.match[1]);
-  ctx.session.replyToUserId = targetUserId;
+  ownerReplySession[ctx.from.id] = targetUserId;
+
   await ctx.answerCbQuery();
-  await ctx.reply("☝️ Ответьте клиенту", { reply_to_message_id: ctx.callbackQuery.message.message_id });
+  await ctx.reply("☝️ Ответьте клиенту", {
+    reply_to_message_id: ctx.callbackQuery.message.message_id,
+  });
 });
 
-// Передача ответа клиенту
+// Ответ владельца клиенту
 bot.on(["text", "voice"], async (ctx) => {
   if (ctx.from.id !== OWNER_ID) return;
 
-  const targetUserId = ctx.session?.replyToUserId;
+  const targetUserId = ownerReplySession[ctx.from.id];
   if (!targetUserId) return;
 
-  delete ctx.session.replyToUserId;
+  delete ownerReplySession[ctx.from.id];
 
   try {
     if (ctx.message.voice) {

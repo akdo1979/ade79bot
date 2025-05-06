@@ -5,7 +5,7 @@ const fs = require("fs");
 
 const fastify = Fastify({ logger: false });
 const bot = new Telegraf(process.env.TELEGRAM_TOKEN);
-bot.use(session()); // добавляем поддержку сессий
+bot.use(session()); // включаем поддержку сессий
 
 const OWNER_ID = 7797626310;
 
@@ -82,10 +82,11 @@ bot.action(["ru", "qq", "uz", "kz"], async (ctx) => {
   }
 });
 
-bot.on("text", async (ctx) => {
+// От клиента: текст
+bot.on("text", async (ctx, next) => {
   const senderId = ctx.from.id;
 
-  if (senderId === OWNER_ID && ctx.session?.replyToUserId) return; // если это ответ владельца, не обрабатываем здесь
+  if (senderId === OWNER_ID && ctx.session?.replyToUserId) return next(); // разрешаем, если ответ
 
   if (!users[senderId]) {
     users[senderId] = { lang: "ru", notified: false };
@@ -104,7 +105,7 @@ bot.on("text", async (ctx) => {
       OWNER_ID,
       `💬 Сообщение от клиента\nID: ${senderId}\nТекст: ${ctx.message.text}\nЯзык: ${lang}`,
       Markup.inlineKeyboard([
-        [Markup.button.callback("Ответить клиенту", `reply_${senderId}`)]
+        [Markup.button.callback("Ответить клиенту", `reply_${senderId}`)],
       ])
     );
   } catch (error) {
@@ -112,19 +113,17 @@ bot.on("text", async (ctx) => {
   }
 });
 
-bot.on("voice", async (ctx) => {
+// От клиента: голос
+bot.on("voice", async (ctx, next) => {
   const senderId = ctx.from.id;
 
-  if (senderId === OWNER_ID && ctx.session?.replyToUserId) return; // если это голос владельца — не обрабатываем
+  if (senderId === OWNER_ID && ctx.session?.replyToUserId) return next();
 
   const lang = users[senderId]?.lang || "ru";
 
-  if (!users[senderId]) {
-    users[senderId] = { lang, notified: false };
-  }
-
-  if (!users[senderId].notified) {
+  if (!users[senderId]?.notified) {
     await ctx.reply(translations[lang].waiting);
+    users[senderId] = users[senderId] || {};
     users[senderId].notified = true;
     saveUsers();
   }
@@ -133,31 +132,31 @@ bot.on("voice", async (ctx) => {
     await ctx.telegram.sendVoice(OWNER_ID, ctx.message.voice.file_id);
     await ctx.telegram.sendMessage(
       OWNER_ID,
-      `Язык клиента: ${lang}`,
+      `Голосовое сообщение от клиента\nID: ${senderId}\nЯзык: ${lang}`,
       Markup.inlineKeyboard([
-        [Markup.button.callback("Ответить клиенту", `reply_${senderId}`)]
+        [Markup.button.callback("Ответить клиенту", `reply_${senderId}`)],
       ])
     );
   } catch (error) {
-    console.error("Ошибка при пересылке голосового сообщения владельцу:", error);
+    console.error("Ошибка при пересылке голосового сообщения:", error);
   }
 });
 
+// Ответ владельца
 bot.action(/reply_(\d+)/, async (ctx) => {
-  const targetUserId = ctx.match[1];
-  ctx.session = ctx.session || {};
+  const targetUserId = Number(ctx.match[1]);
   ctx.session.replyToUserId = targetUserId;
-  console.log('Set replyToUserId:', targetUserId);
   await ctx.answerCbQuery();
   await ctx.reply("☝️ Ответьте клиенту", { reply_to_message_id: ctx.callbackQuery.message.message_id });
 });
 
+// Передача ответа клиенту
 bot.on(["text", "voice"], async (ctx) => {
-  if (ctx.from.id !== OWNER_ID) return; // Обрабатываем только если сообщение от владельца
+  if (ctx.from.id !== OWNER_ID) return;
 
-  if (!ctx.session || !ctx.session.replyToUserId) return;
-  const targetUserId = ctx.session.replyToUserId;
-  console.log('Replying to user:', targetUserId);
+  const targetUserId = ctx.session?.replyToUserId;
+  if (!targetUserId) return;
+
   delete ctx.session.replyToUserId;
 
   try {
@@ -174,6 +173,7 @@ bot.on(["text", "voice"], async (ctx) => {
   }
 });
 
+// Webhook Fastify
 fastify.post("/webhook", async (request, reply) => {
   try {
     await bot.handleUpdate(request.body);
@@ -183,9 +183,7 @@ fastify.post("/webhook", async (request, reply) => {
   reply.send({ status: "ok" });
 });
 
-fastify.get("/", async () => {
-  return "Bot is alive!";
-});
+fastify.get("/", async () => "Bot is alive!");
 
 const PORT = process.env.PORT || 10000;
 fastify.listen({ port: PORT, host: "0.0.0.0" }, async (err) => {
@@ -196,7 +194,7 @@ fastify.listen({ port: PORT, host: "0.0.0.0" }, async (err) => {
   console.log(`🌐 Fastify сервер работает на порту ${PORT}`);
 
   try {
-    const webhookUrl = `${process.env.RENDER_EXTERNAL_URL || "https://ade79bot.onrender.com"}/webhook`;
+    const webhookUrl = `${process.env.RENDER_EXTERNAL_URL}/webhook`;
     await bot.telegram.setWebhook(webhookUrl);
     console.log("✅ Webhook установлен:", webhookUrl);
   } catch (error) {
